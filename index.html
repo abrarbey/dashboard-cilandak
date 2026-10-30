@@ -12190,7 +12190,7 @@ body input[type="number"]::-webkit-inner-spin-button,body input[type="number"]::
   <div class="headerrow">
     <div>
       <h1>Overview</h1>
-      <div class="sub">Status data: 15 September 2026</div>
+      <div class="sub" id="overviewDataStatus" role="status" aria-live="polite">Status data: 28 Oktober 2026</div>
       <div class="ov-filterbar">
         <div class="ov-filter-actions">
           <div class="ov-region-filter">
@@ -12904,7 +12904,7 @@ body input[type="number"]::-webkit-inner-spin-button,body input[type="number"]::
     </section>
 
     <section id="delivery" class="page">
-      <div class="headerrow"><div><h1>Penyampaian Surat</h1></div></div>
+      <div class="headerrow"><div><h1>Penyampaian Surat</h1><div class="sub" id="deliveryDataStatus" role="status" aria-live="polite"></div></div></div>
       <div class="grid" style="grid-template-columns:minmax(0,1fr)">
         <div class="card"><div class="sectiontitle">Update Penyampaian</div><div class="formgrid">
           <div class="field"><label>NOPD / NOP</label><input id="deliveryNop" placeholder="Masukkan NOPD/NOP" onchange="deliveryLoadStage()"></div>
@@ -13010,7 +13010,7 @@ document.addEventListener('DOMContentLoaded',()=>{pbbSyncAdminTargets();});
     </div>
   </div>
 
-  <div class="card import-matrix-card"><div class="import-matrix-scroll"><table class="table" id="importSourceMatrix"><thead><tr><th>Sumber Data</th><th>File Aktif</th><th>Jumlah Data</th><th>Terakhir Diunggah</th><th>Status</th><th>Tindakan</th></tr></thead><tbody id="importSourceRows"></tbody></table></div></div><dialog id="importDialog-overview" class="import-source-dialog" aria-labelledby="importTitle-overview"><div class="import-dialog-head"><h2 id="importTitle-overview">Overview</h2><button type="button" class="btn" onclick="importMatrixClose('overview')" aria-label="Tutup pop up">Tutup ×</button></div><div class="import-dialog-content">
+  <div class="card" id="saktiHybridPanel" style="margin-bottom:14px;padding:12px 16px"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><span id="saktiHybridStatus" role="status" aria-live="polite">Tujuh sumber Excel siap diambil otomatis.</span><button id="saktiHybridRetry" class="btn" type="button" onclick="saktiHybridSync()">↻ Sinkronkan Ulang</button></div><div id="saktiHybridStorageNotice" class="mini-note" role="status" style="margin-top:6px"></div></div><div class="card import-matrix-card"><div class="import-matrix-scroll"><table class="table" id="importSourceMatrix"><thead><tr><th>Sumber Data</th><th>File Aktif</th><th>Jumlah Data</th><th>Terakhir Diperbarui</th><th>Status</th><th>Tindakan</th></tr></thead><tbody id="importSourceRows"></tbody></table></div></div><dialog id="importDialog-overview" class="import-source-dialog" aria-labelledby="importTitle-overview"><div class="import-dialog-head"><h2 id="importTitle-overview">Overview</h2><button type="button" class="btn" onclick="importMatrixClose('overview')" aria-label="Tutup pop up">Tutup ×</button></div><div class="import-dialog-content">
       <div class="sectiontitle">Import Data Overview</div>
       <div class="fake-upload" id="overviewDropZone">
         ⬆ Drag &amp; drop file Excel <strong>Overview(7).xlsx</strong> di sini
@@ -14515,16 +14515,56 @@ const OV_MONTHS=[
   ['AGU','Agustus'],['AUG','Agustus'],['SEP','September'],['OKT','Oktober'],
   ['OCT','Oktober'],['NOV','November'],['DES','Desember'],['DEC','Desember']
 ];
-function parseOverviewDateFromHeader(headerText){
-  const raw=String(headerText||'').replace(/\s+/g,' ').trim();
-  const m=raw.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})/i);
-  if(!m) return null;
-  const key=m[2].slice(0,3).toUpperCase();
-  const hit=OV_MONTHS.find(x=>x[0]===key);
-  if(!hit) return null;
-  const year=m[3].length===2?'20'+m[3]:m[3];
-  return {day:Number(m[1]), monthName:hit[1], monthAbbr:hit[1].slice(0,3), year:Number(year)};
+// Report dates are read from the active realization header or explicitly labelled date cells.
+const OVERVIEW_DATE_MONTHS=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+function overviewDateParts(year,month,day){
+ year=Number(year);month=Number(month);day=Number(day);const test=new Date(Date.UTC(year,month-1,day));
+ if(year<1990||year>2100||test.getUTCFullYear()!==year||test.getUTCMonth()+1!==month||test.getUTCDate()!==day)return null;
+ return {day,monthName:OVERVIEW_DATE_MONTHS[month-1],monthAbbr:OVERVIEW_DATE_MONTHS[month-1].slice(0,3),year};
 }
+function overviewDateOrder(date){return date?date.year*10000+(OVERVIEW_DATE_MONTHS.indexOf(date.monthName)+1)*100+date.day:0;}
+function overviewLatestDate(dates){let latest=null;for(const date of dates)if(date&&(!latest||overviewDateOrder(date)>overviewDateOrder(latest)))latest=date;return latest;}
+function overviewDatesInValue(value,allowExcelSerial=false){
+ if(value instanceof Date)return [overviewDateParts(value.getFullYear(),value.getMonth()+1,value.getDate())].filter(Boolean);
+ if(typeof value==='number'){
+  if(!allowExcelSerial||!Number.isFinite(value)||value<32874||value>73415)return [];
+  const parts=XLSX.SSF.parse_date_code(value);return parts?[overviewDateParts(parts.y,parts.m,parts.d)].filter(Boolean):[];
+ }
+ const text=String(value??'').replace(/<[^>]*>/g,' ').replace(/&nbsp;|\u00a0/gi,' ').replace(/\s+/g,' ').trim(),dates=[];
+ for(const m of text.matchAll(/\b(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})\b/g))dates.push(overviewDateParts(m[1],m[2],m[3]));
+ for(const m of text.matchAll(/\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{4}|\d{2})\b/g))dates.push(overviewDateParts(m[3].length===2?'20'+m[3]:m[3],m[2],m[1]));
+ const months={jan:1,januari:1,january:1,feb:2,februari:2,february:2,peb:2,pebruari:2,mar:3,maret:3,march:3,apr:4,april:4,mei:5,may:5,jun:6,juni:6,june:6,jul:7,juli:7,july:7,agu:8,ags:8,agt:8,agustus:8,aug:8,august:8,sep:9,sept:9,september:9,okt:10,oktober:10,oct:10,october:10,nov:11,november:11,des:12,desember:12,dec:12,december:12};
+ for(const m of text.matchAll(/\b(\d{1,2})\s+([A-Za-z]+)\.?\s+(\d{4}|\d{2})\b/g)){const month=months[m[2].toLowerCase()];if(month)dates.push(overviewDateParts(m[3].length===2?'20'+m[3]:m[3],month,m[1]));}
+ return dates.filter(Boolean);
+}
+function parseOverviewDateFromHeader(headerText){return overviewLatestDate(overviewDatesInValue(headerText));}
+function parseOverviewDateFromWorkbook(wb,currentColumn,previousColumn){
+ const primary=wb.Sheets.Sheet1,grid=XLSX.utils.sheet_to_json(primary,{header:1,defval:null,raw:true}),working=releaseYear();
+ // Current-year realization has priority over the prior-year comparison header.
+ const direct=grid.slice(0,2).flatMap(row=>overviewDatesInValue(row[currentColumn],true));
+ if(direct.length)return overviewLatestDate(direct.filter(d=>d.year===working).length?direct.filter(d=>d.year===working):direct);
+ const headerDates=(grid[0]||[]).flatMap((value,col)=>col===previousColumn?[]:overviewDatesInValue(value));
+ const currentHeaders=headerDates.filter(d=>d.year===working);if(currentHeaders.length)return overviewLatestDate(currentHeaders);
+ const candidates=[];
+ const isDateLabel=value=>{const v=String(value??'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().toLowerCase();return !/jatuh\s*tempo|tanggal\s*(?:bayar|pembayaran|lahir|sppt)/.test(v)&&/^(?:tanggal|tgl|date)$|(?:tanggal|tgl|date)\s*(?:data|update|pembaruan|laporan|realisasi)|(?:data|status|realisasi)\s*(?:per|s\s*\/\s*d|tanggal)|cut[\s-]*off|as\s*of/i.test(v);};
+ for(const name of wb.SheetNames){
+  const rows=name==='Sheet1'?grid:XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:null,raw:true});
+  const columns=new Set();
+  for(let r=0;r<Math.min(25,rows.length);r++)for(let c=0;c<(rows[r]?.length||0);c++){
+   if(name==='Sheet1'&&c===previousColumn)continue;
+   const value=rows[r][c];if(!isDateLabel(value))continue;
+   candidates.push(...overviewDatesInValue(value));
+   // Metadata may put the value beside its label or immediately below it.
+   if(c+1<(rows[r]?.length||0))candidates.push(...overviewDatesInValue(rows[r][c+1],true));
+   if(r+1<rows.length)candidates.push(...overviewDatesInValue(rows[r+1]?.[c],true));
+   // Exact date-column headers are scanned through all rows for the latest date.
+   if(/^(?:tanggal|tgl|date)(?:\s+(?:data|update|pembaruan|laporan|realisasi))?$/i.test(String(value).trim()))columns.add(c);
+  }
+  for(const c of columns)for(let r=1;r<rows.length;r++)candidates.push(...overviewDatesInValue(rows[r]?.[c],true));
+ }
+ const current=candidates.filter(d=>d.year===working);return overviewLatestDate(current.length?current:candidates);
+}
+
 
 // ---- single source of truth for the cut-off date -------------------------
 let overviewCutoff={"day":28,"monthName":"Oktober","monthAbbr":"Okt","year":2026};
@@ -14644,13 +14684,13 @@ function buildOverviewFromWorkbook(wb){
   if(all) all.checked=true;
   updateOverviewTaxView();
 
-  const parsed=parseOverviewDateFromHeader(headerRow[cR26]);
+  const parsed=parseOverviewDateFromWorkbook(wb,cR26,cR25);
   if(parsed) overviewCutoff=parsed;
   applyOverviewCutoff();
   updatePbbPerformanceDashboard();
   requestAnimationFrame(resetPbbMatrixScroll);   // keep the PBB-P2 page in step with Overview
 
-  return {rows:rows.length, monthly:monthly.length, dateText:cutoffLong()};
+  return {rows:rows.length, monthly:monthly.length, dateText:cutoffLong(),dateDetected:!!parsed};
 }
 function handleOverviewFile(file){
   if(!file) return;
@@ -14667,7 +14707,7 @@ function handleOverviewFile(file){
     try{
       const wb=releaseWorkbook(e.target.result,{type:'array'});
       const result=buildOverviewFromWorkbook(wb);
-      setOverviewStatus(`Menu Overview diperbarui dari <b>${file.name}</b>. ${result.rows} baris utama dan ${result.monthly} baris bulanan berhasil dibaca.`,true);
+      setOverviewStatus(`Menu Overview diperbarui dari <b>${file.name}</b>. ${result.rows} baris utama dan ${result.monthly} baris bulanan berhasil dibaca. ${result.dateDetected?'Tanggal data: '+result.dateText+'.':'Tanggal data tidak ditemukan pada file; tanggal sebelumnya tetap digunakan.'}`,true);
       document.querySelector('.navitem[data-page="taxoverview"]')?.click();
     }catch(err){
       setOverviewStatus(err.message||'File tidak dapat diproses.',false);
@@ -16376,7 +16416,7 @@ function buildDhkpFromWorkbook(wb,fileName=''){
   dhkpMeta={
     source:fileName||sheetName,
     sheet:sheetName,
-    dataDate:dhkpFindDataDate(rows),
+    dataDate:pbbSourceDateLabel(pbbSourceWorkbookDate(wb,'dhkp')),
     importedAt:new Date().toISOString(),
     total:data.length,
     downloaded,
@@ -16597,7 +16637,7 @@ function buildPbbPaymentFromWorkbook(wb,fileName=''){
   }
   pbbPaymentData=data;
   pbbPaymentPreloadedStats.active=false;
-  pbbPaymentMeta={source:fileName||sheet,sheet,dataDate:maxDate?maxDate.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}):'',importedAt:new Date().toISOString(),rows:data.length};
+  pbbPaymentMeta={source:fileName||sheet,sheet,dataDate:pbbSourceDateLabel(pbbSourceWorkbookDate(wb,'payment'))||(maxDate?maxDate.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}):''),importedAt:new Date().toISOString(),rows:data.length};
   updatePbbPaymentDashboard();
   dashboardRefreshProfiling();
   return getPbbPaymentStats();
@@ -16778,7 +16818,7 @@ function buildPbbHistoryFromWorkbook(wb,fileName=''){
   for(let i=hi+1;i<rows.length;i++){const r=rows[i]||[],nop=pbbPayDigits(r[c.nop]);if(!nop)continue;const tgl=pbbPayDate(r[c.tgl]);if(!tgl||tgl.getFullYear()!==(releaseYear()-1))continue;
     const rec={nop,tahunPajak:parseInt(String(r[c.thn]||''),10)||0,pokok:pbbPayNum(r[c.pokok]),tanggalBayar:tgl};data.push(rec);if(!maxDate||tgl>maxDate)maxDate=tgl;if(!minDate||tgl<minDate)minDate=tgl}
   if(!data.length)throw new Error('Tidak ada pembayaran 2025 yang valid. Data sebelumnya tetap dipakai.');
-  pbbHistoryData=data;pbbHistoryMeta={source:fileName,sheet,rows:data.length,dataDate:(minDate&&maxDate)?minDate.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})+'–'+maxDate.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}):''};
+  pbbHistoryData=data;pbbHistoryMeta={source:fileName,sheet,rows:data.length,dataDate:pbbSourceDateLabel(pbbSourceWorkbookDate(wb,'history'))||(maxDate?maxDate.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}):'')};
   renderPbbBehaviorPanel();dashboardRefreshProfiling();return pbbHistoryMeta;
 }
 function handlePbbHistoryFile(file){
@@ -20415,7 +20455,8 @@ document.getElementById('priorityReasonOtherDialog').addEventListener('click',ev
  </div><p id="rbUserScopeHelp"></p><p id="rbUserError" role="alert"></p><div class="rb-actions"><button type="button" class="btn" onclick="document.getElementById('rbUserDialog').close()">Batal</button><button type="submit" class="btn primary">Simpan Pengguna</button></div>
  </form>
 </dialog>
-<dialog id="rbDeliveryHistoryDialog" aria-labelledby="rbHistoryTitle" style="width:min(640px,calc(100vw - 28px));max-height:85dvh;overflow:auto;background:var(--release-panel);color:var(--release-ink);border:1px solid var(--release-line);border-radius:14px;padding:20px"><div class="rb-dialog-head"><h2 id="rbHistoryTitle">Riwayat Perubahan</h2><button type="button" class="btn" onclick="document.getElementById('rbDeliveryHistoryDialog').close()">Tutup</button></div><div id="rbHistoryBody"></div></dialog><script id="role-access-v118">
+<dialog id="rbDeliveryHistoryDialog" aria-labelledby="rbHistoryTitle" style="width:min(640px,calc(100vw - 28px));max-height:85dvh;overflow:auto;background:var(--release-panel);color:var(--release-ink);border:1px solid var(--release-line);border-radius:14px;padding:20px"><div class="rb-dialog-head"><h2 id="rbHistoryTitle">Riwayat Perubahan</h2><button type="button" class="btn" onclick="document.getElementById('rbDeliveryHistoryDialog').close()">Tutup</button></div><div id="rbHistoryBody"></div></dialog><script>const SAKTI_HYBRID_BASE_BUILDERS=Object.freeze({overview:buildOverviewFromWorkbook,dhkp:buildDhkpFromWorkbook,payment:buildPbbPaymentFromWorkbook,history:buildPbbHistoryFromWorkbook});</script>
+<script id="role-access-v118">
 /* Role and territory policy shared by navigation, readers and mutations.
    Client-side enforcement for the standalone edition; server must independently
    enforce roleCode, kecamatan and kelurahan for protected deployment. */
@@ -20691,8 +20732,8 @@ function pkPlanWorkbook(wb,{masterOnly=false,singleSheet=false}={}){
  if(!changes.length)throw Error('Tidak ada baris data untuk diimpor.');
  return {changes,masters:[...byNop.values()],added,updated,full};
 }
-function pkCommitPlan(plan,fileName=''){
- if(plan.full){pbbPriorityData=plan.masters.map(row=>({...row,kelurahan:row.kel}));pbbPriorityMeta={...pbbPriorityMeta,source:fileName||pbbPriorityMeta.source,rows:pbbPriorityData.length};}
+function pkCommitPlan(plan,fileName='',dataDate=''){
+ if(plan.full){pbbPriorityData=plan.masters.map(row=>({...row,kelurahan:row.kel}));pbbPriorityMeta={...pbbPriorityMeta,source:fileName||pbbPriorityMeta.source,rows:pbbPriorityData.length,dataDate,importedAt:new Date().toISOString()};}
  const now=new Date().toISOString(),actor=guidanceCurrentUser(),ops={...priorityOpsState},guidance={...guidanceStore};
  for(const item of plan.changes){if(item.note!==null)ops[item.nop]={...(ops[item.nop]||{}),catatan:item.note};if(item.guidance!==null||item.status!==null){const old=guidance[item.nop]||{};guidance[item.nop]={...old,arahan:item.guidance??old.arahan??'',status:item.status??old.status??'Belum Ditindaklanjuti',updatedAt:now,updatedBy:actor,source:'Import Excel Objek Prioritas',sources:[...new Set([...(old.sources||[]),'Import Excel Objek Prioritas'])]};}}
  priorityOpsState=ops;guidanceStore=guidance;releaseInvalidate();
@@ -20703,7 +20744,7 @@ async function pkImportPriority(input){
   if(!rbCanWrite())throw Error('Akun tidak memiliki izin pembaruan.');if(!releaseReady)throw Error('Data masih dimuat. Tunggu hingga siap.');
   const wb=await releaseParseFile(file),plan=pkPlanWorkbook(wb);
   if(!confirm((plan.inputRows?'Gabungkan '+plan.inputRows+' baris menjadi '+plan.uniqueNops+' NOPD. ':'')+'Tambah '+plan.added+' objek baru dan perbarui '+plan.updated+' objek berdasarkan NOPD? Objek lain serta riwayat surat tetap dipertahankan. Kolom pembayaran dan penyampaian pada file ini hanya informasi.'))return;
-  const before=structuredClone(releaseGetState());try{pkCommitPlan(plan,file.name);await releasePersist(plan.full?'Impor master prioritas':'Impor catatan operasional');}catch(error){releaseSetState(before);throw error;}
+  const before=structuredClone(releaseGetState());try{pkCommitPlan(plan,file.name,pbbSourceDateLabel(pbbSourceWorkbookDate(wb,'priority')));await releasePersist(plan.full?'Impor master prioritas':'Impor catatan operasional');}catch(error){releaseSetState(before);throw error;}
   dashboardMatrixState.priority.page=1;document.querySelectorAll('#priority .priority-header-filter,#delivery .delivery-filter-input').forEach(el=>el.value='');releaseRefresh();renderPriorityReal();renderDeliveryMonitor();priorityNotificationRefresh();
   alert('Import selesai: '+plan.added+' objek ditambahkan, '+plan.updated+' objek diperbarui.'+(plan.inputRows?' '+plan.inputRows+' baris diproses sebagai '+plan.uniqueNops+' NOPD unik.':''));
  }catch(error){alert('Import dibatalkan: '+error.message);}finally{input.value='';}
@@ -20717,7 +20758,7 @@ function pkExportPriority(){
  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(notes),'Petunjuk');excelWrite(wb,'Objek_Prioritas_'+excelDateStamp()+'.xlsx');
 }
 // The standard master importer uses the same validation and merge rules.
-function pkBuildPriority(wb,fileName=''){if(!rbFull())throw Error('Impor master hanya untuk Master dan Petugas UPPPD.');const plan=pkPlanWorkbook(wb,{masterOnly:true});pkCommitPlan(plan,fileName);return {...pbbPriorityMeta,added:plan.added,updated:plan.updated};}
+function pkBuildPriority(wb,fileName=''){if(!rbFull())throw Error('Impor master hanya untuk Master dan Petugas UPPPD.');const plan=pkPlanWorkbook(wb,{masterOnly:true});pkCommitPlan(plan,fileName,pbbSourceDateLabel(pbbSourceWorkbookDate(wb,'priority')));return {...pbbPriorityMeta,added:plan.added,updated:plan.updated};}
 
 // Alias older export entry points to the same round-trip template.
 exportPriorityExcel=function(){return pkExportPriority();};
@@ -20951,6 +20992,214 @@ for(const [name,id] of [['doLogin','loginPassword'],['submitCreateAccount','crea
  const original=window[name];if(typeof original!=='function')continue;
  window[name]=function(...args){const input=document.getElementById(id);if(!dashboardPasswordLengthOK(input?.value||'')){alert('Password minimal 4 karakter.');input?.focus();return;}return original.apply(this,args);};
 }
+</script>
+<script id="pbb-source-dates-v135">function pbbSourceDateLabel(date){return date?date.day+' '+date.monthName+' '+date.year:'';}
+function pbbSourceWorkbookDate(wb,kind){
+ const report=[],transactions=[];
+ for(const name of wb.SheetNames){
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:null,raw:true}),columns=new Set();
+  for(let r=0;r<Math.min(rows.length,25);r++)for(let c=0;c<(rows[r]?.length||0);c++){
+   const raw=rows[r][c],label=String(raw??'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
+   if(/(?:data|status|realisasi)\s*(?:per|s\s*\/\s*d)|cut[\s-]*off|(?:tanggal|tgl)\s*(?:data|laporan|update|pembaruan)|as\s*of/.test(label)&&!/jatuh\s*tempo/.test(label)){
+    report.push(...overviewDatesInValue(raw));
+    if(/^(?:(?:tanggal|tgl)\s*(?:data|laporan|update|pembaruan)|cut[\s-]*off|data per(?: tanggal)?|as of)\s*:?$/.test(label)){
+     report.push(...overviewDatesInValue(rows[r][c+1],true),...overviewDatesInValue(rows[r+1]?.[c],true));columns.add(c);
+    }
+   }
+   const clean=label.replace(/[^a-z]/g,'');
+   if((kind==='dhkp'&&['tanggalunduh','tglunduh'].includes(clean))||(['payment','history'].includes(kind)&&['tglpembayaransppt','tanggalpembayaransppt','tanggalpembayaran','tanggalbayar','tglbayar'].includes(clean)))columns.add(c);
+  }
+  for(const c of columns)for(const row of rows)transactions.push(...overviewDatesInValue(row[c],true));
+ }
+ return overviewLatestDate(report.length?report:transactions);
+}
+function pbbActiveDate(meta,data,field){
+ if(!data?.length)return '';
+ const parsed=overviewLatestDate(overviewDatesInValue(meta?.dataDate||''));if(parsed)return pbbSourceDateLabel(parsed);
+ if(!field)return '';
+ return pbbSourceDateLabel(overviewLatestDate(data.flatMap(r=>overviewDatesInValue(r[field],true))));
+}
+let pbbStatusDateCache=null;
+function pbbSourceDateLabels(){
+ const refs=[pbbPaymentMeta,pbbPaymentData,dhkpMeta,dhkpData,pbbHistoryMeta,pbbHistoryData,pbbPriorityMeta,pbbPriorityData];
+ if(pbbStatusDateCache&&refs.every((v,i)=>v===pbbStatusDateCache.refs[i]))return pbbStatusDateCache.labels;
+ const labels={payment:pbbActiveDate(pbbPaymentMeta,pbbPaymentData,'tanggalBayar'),dhkp:pbbActiveDate(dhkpMeta,dhkpData,'tanggalUnduh'),history:pbbActiveDate(pbbHistoryMeta,pbbHistoryData,'tanggalBayar'),priority:pbbSourceDateLabel(overviewLatestDate(overviewDatesInValue(pbbPriorityMeta?.dataDate||'')))};
+ pbbStatusDateCache={refs,labels};return labels;
+}
+function pbbRefreshDateLabels(){
+ const d=pbbSourceDateLabels(),payment='Pembayaran s.d. '+(d.payment||'belum tersedia'),dhkp='DHKP/Unduhan s.d. '+(d.dhkp||'belum tersedia'),priority='Prioritas: '+(d.priority||'tanggal tidak tercantum');
+ const set=(id,text,title)=>{const el=document.getElementById(id);if(el){el.textContent='Status data: '+text;el.title=title||text;}};
+ const detail=payment+' · '+dhkp+' · Riwayat pembayaran: '+(d.history||'belum tersedia')+' · '+priority;
+ set('pbbStatusText',payment+' · '+dhkp,detail+' · Overview: '+cutoffLong());
+ set('opProfileDataStatus',payment+' · '+dhkp,detail);
+ set('priorityStatusData',payment+' · '+priority,detail);
+ set('deliveryDataStatus',payment+' · '+priority,detail);
+ const chip=document.getElementById('pbbStatusChip');if(chip){chip.textContent=payment;chip.title=detail;}
+}
+updatePbbCutoffChip=pbbRefreshDateLabels;
+opProfileUpdateDataStatus=pbbRefreshDateLabels;
+for(const name of ['updatePbbPaymentDashboard','updatePbbDownloadDashboard','renderPriorityReal','renderDeliveryMonitor']){
+ const original=window[name];if(typeof original!=='function')continue;
+ window[name]=function(...args){const result=original.apply(this,args);pbbRefreshDateLabels();return result;};
+}
+document.addEventListener('DOMContentLoaded',pbbRefreshDateLabels);
+pbbRefreshDateLabels();
+</script>
+<script id="sakti-excel-v137">/* SAKTI Sinkronisasi Excel: fixed remote datasets; manual user permissions remain unchanged. */
+const SAKTI_HYBRID_SOURCES=Object.freeze([{"key": "overview", "type": "xlsx", "name": "Overview.xlsx", "url": "https://docs.google.com/spreadsheets/d/1OwQX6xrnfczuTiSLWJHyrKkgbxV77w0l/export?format=xlsx"}, {"key": "dhkp", "type": "xlsx", "name": "DHKP_Unduhan_SPPT.xlsx", "url": "https://docs.google.com/spreadsheets/d/1hcFlh8V5j4HJSwugPpkD1xAVWEA3Ocbo/export?format=xlsx"}, {"key": "payment", "type": "xlsx", "name": "Pembayaran_PBB.xlsx", "url": "https://docs.google.com/spreadsheets/d/1jsVPB8ko6g3ATwqwl4kMmGwJIHz0Bjgy/export?format=xlsx"}, {"key": "history", "type": "xlsx", "name": "Riwayat_Pembayaran.xlsx", "url": "https://docs.google.com/spreadsheets/d/1SoQA35ZPQdHcX8ihMmc4Ca2QMFphUkNk/export?format=xlsx"}, {"key": "priority", "type": "xlsx", "name": "Prioritas_Himbauan.xlsx", "url": "https://docs.google.com/spreadsheets/d/1yVW8WJlEk_xvxCBAxXhG6Fmn-5aHQuuZ/export?format=xlsx"}, {"key": "debt", "type": "xlsx", "name": "Rincian_Piutang_Tahunan.xlsx", "url": "https://docs.google.com/spreadsheets/d/1rdLTZGzcfJ2zp_aArWA3hq7jQ__UAFBj/export?format=xlsx"}, {"key": "due", "type": "xlsx", "name": "Jatuh_Tempo_PBB.xlsx", "url": "https://docs.google.com/spreadsheets/d/1jW4qznyWkpb5GozriKkg9NehJP3jQ6qY/export?format=xlsx"}].map(s=>Object.freeze(s)));
+let saktiHybridBusy=false,saktiHybridApplying=false,saktiHybridStarted=false;
+const saktiHybridManualRevision=Object.create(null);
+const saktiHybridView=Object.create(null);
+function saktiHybridPaint(){
+ const el=document.getElementById('saktiHybridStatus');if(!el)return;
+ const values=Object.values(saktiHybridView),ok=values.filter(v=>v==='success').length,bad=values.filter(v=>v==='error').length;
+ el.textContent=saktiHybridBusy?'Mengambil 7 sumber Excel… '+ok+'/7 diterapkan'+(bad?' · '+bad+' gagal':''):(values.length?'Sinkronisasi Excel: '+ok+'/7 sumber diperbarui'+(bad?' · '+bad+' gagal; data terakhir dipertahankan':''):'Tujuh sumber Excel siap diambil otomatis.');
+ const button=document.getElementById('saktiHybridRetry');if(button)button.disabled=saktiHybridBusy;
+ if(typeof importMatrixRender==='function')importMatrixRender();
+}
+function saktiHybridStatus(source,state,message){
+ saktiHybridView[source.key]=state;
+ const old=importMatrixMeta[source.key]||{};
+ importMatrixMeta[source.key]={...old,state,detail:message,...(state==='success'?{file:source.name,at:new Date().toISOString()}:{} )};
+ const slot=document.getElementById(IMPORT_MATRIX_SOURCES.find(r=>r[0]===source.key)?.[3]);if(slot){slot.textContent=message;slot.style.display='block';}
+ saktiHybridPaint();
+}
+function saktiHybridRejectHTML(text){if(/^\s*(?:<!doctype\s+html|<html|<head|<body|<form)/i.test(text)||/<(?:html|title)[\s>]/i.test(text.slice(0,2000)))throw Error('Sumber mengembalikan halaman web/login, bukan data. Periksa izin dan URL ekspor Google.');}
+async function saktiHybridParse(input,type){
+ // Reuse the embedded SheetJS worker, replacing only its message handler.
+ const workerCode=window.RELEASE_WORKER_SOURCE;
+ if(typeof Worker!=='undefined'&&workerCode){
+  return new Promise((resolve,reject)=>{
+   let worker,url,timer;const finish=(error,wb)=>{clearTimeout(timer);worker?.terminate();if(url)URL.revokeObjectURL(url);error?reject(error):resolve(wb);};
+   try{url=URL.createObjectURL(new Blob([workerCode,'\nself.onmessage=e=>{try{const wb=XLSX.read(e.data.input,{type:e.data.type==="csv"?"string":"array",raw:true,cellDates:e.data.type!=="csv",cellNF:true});self.postMessage({workbook:wb});}catch(error){self.postMessage({error:error.message});}};'],{type:'text/javascript'}));worker=new Worker(url);
+    timer=setTimeout(()=>finish(Error('Pembacaan data melewati batas waktu.')),60000);
+    worker.onerror=()=>finish(Error('Pemroses data gagal. Coba muat ulang halaman.'));
+    worker.onmessage=e=>{if(e.data.error)finish(Error(e.data.error));else if(e.data.workbook)finish(null,e.data.workbook);};
+    worker.postMessage({input,type},type==='xlsx'?[input]:[]);
+   }catch(error){finish(Error('Pemroses Hybrid tidak dapat dijalankan: '+error.message));}
+  });
+ }
+ await new Promise(resolve=>setTimeout(resolve,0));return XLSX.read(input,{type:type==='csv'?'string':'array',raw:true,cellDates:type!=='csv',cellNF:true});
+}
+async function saktiHybridFetch(source){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
+ try{
+  const response=await fetch(source.url,{method:'GET',mode:'cors',credentials:'omit',cache:'no-store',redirect:'follow',signal:controller.signal});
+  if(!response.ok)throw Error('HTTP '+response.status+'; periksa izin dan URL sumber.');
+  if(response.type==='opaque')throw Error('Respons tidak dapat dibaca karena pembatasan CORS.');
+  if(Number(response.headers.get('content-length'))>60*1024*1024)throw Error('File melebihi batas 60 MB.');
+  const ct=(response.headers.get('content-type')||'').toLowerCase();if(ct.includes('text/html'))throw Error('Sumber berupa halaman web/login Google, bukan file data.');
+  if(source.type==='csv'){
+   const text=(await response.text()).replace(/^\uFEFF/,'');if(!text.trim())throw Error('File CSV kosong.');if(text.length>60*1024*1024)throw Error('CSV terlalu besar.');saktiHybridRejectHTML(text);
+   return await saktiHybridParse(text,'csv');
+  }
+  const buffer=await response.arrayBuffer();if(buffer.byteLength<4||buffer.byteLength>60*1024*1024)throw Error('Ukuran file Excel tidak valid.');
+  const signature=new Uint8Array(buffer,0,4);if(signature[0]!==0x50||signature[1]!==0x4b)throw Error('Respons bukan Excel .xlsx yang valid; periksa tautan ekspornya.');
+  return await saktiHybridParse(buffer,'xlsx');
+ }catch(error){
+  if(error.name==='AbortError')throw Error('Unduhan melewati batas waktu; data terakhir tetap digunakan.');
+  if(error instanceof TypeError)throw Error('Unduhan gagal: kemungkinan jaringan, izin akses, atau CORS. Browser tidak memberikan rincian penyebabnya.');
+  throw error;
+ }finally{clearTimeout(timer);}
+}
+function saktiHybridGrid(wb){
+ for(const name of wb.SheetNames){const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,raw:true,defval:''});const hi=rows.slice(0,40).findIndex(row=>row.map(pkHeaders).some(h=>['NOP','NOPD','NOPPBB'].includes(h)));if(hi>=0)return {name,rows,hi,headers:rows[hi].map(pkHeaders)};}
+ throw Error('Kolom NOP/NOPD tidak ditemukan.');
+}
+function saktiHybridValidate(wb,key){
+ if(key==='overview'){if(!wb.Sheets.Sheet1||!wb.Sheets.Sheet2)throw Error('Overview wajib mempunyai Sheet1 dan Sheet2.');return;}
+ if(key==='due'){pbbDuePlan(wb);return;}
+ const {rows,hi,headers}=saktiHybridGrid(wb),ni=headers.findIndex(h=>['NOP','NOPD','NOPPBB'].includes(h));let count=0;const seen=new Set();
+ const invalid=rows.slice(hi+1).map((row,i)=>({row,i:i+hi+2})).filter(({row})=>!row.every(v=>v===''||v===null)&&(typeof row[ni]!=='string'||!/^\d{18}$/.test(row[ni].trim())));
+ if(invalid.length)throw Error(invalid.length+' baris NOPD tidak valid (contoh baris '+invalid.slice(0,5).map(r=>r.i).join(', ')+'). Gunakan NOPD asli berupa teks 18 digit; notasi ilmiah tidak dapat dipulihkan dengan aman.');
+ const money=headers.map((h,c)=>/^(POKOKBAYAR|DENDASPPT|JMLSPPTYGDIBAYAR|NILAIPIUTANG|NILAITAHUNBERJALAN|NILAIPRIORITAS|GRANDTOTAL|PBBP2YANGHARUSDIBAYAR|PBBP2|THN\d{4})$/.test(h)?c:-1).filter(c=>c>=0);
+ const dateColumn=headers.findIndex(h=>['TGLPEMBAYARANSPPT','TANGGALPEMBAYARANSPPT'].includes(h));
+ for(let i=hi+1;i<rows.length;i++){
+  const row=rows[i];if(row.every(v=>v===''||v===null))continue;const nop=row[ni];
+  if(typeof nop!=='string'||!/^\d{18}$/.test(nop.trim()))throw Error('Baris '+(i+1)+': NOPD wajib teks 18 digit.');
+  if(['dhkp','debt'].includes(key)&&seen.has(nop.trim()))throw Error('Baris '+(i+1)+': NOPD duplikat.');seen.add(nop.trim());
+  for(const c of money)if(String(row[c]??'').trim()!=='')pkNumber(row[c],'Baris '+(i+1)+' · '+headers[c]);
+  if(['payment','history'].includes(key)&&(dateColumn<0||!dashboardLocalDate(row[dateColumn])))throw Error('Tanggal pembayaran tidak valid pada baris '+(i+1)+'.');count++;
+ }
+ if(!count)throw Error('Tidak ada baris data valid.');
+}
+function saktiHybridPriorityPlan(wb){
+ const prepared=pmPrepareWorkbook(wb,{masterOnly:true})||{wb,yearDetails:{}};
+ const {rows,hi,headers}=saktiHybridGrid(prepared.wb),masters=new Map((pbbPriorityData.length?pbbPriorityData:priorityMasterPreload).map(pkMasterRow).map(r=>[r.nop,r]));
+ for(const cells of rows.slice(hi+1)){
+  const get=(...names)=>{for(const name of names){const col=headers.indexOf(pkHeaders(name));if(col>=0&&String(cells[col]??'').trim()!=='')return cells[col];}return '';};
+  const nop=String(get('NOP')).trim(),old=masters.get(nop)||{},kind=pkKind(get('Piutang / Tahun Berjalan'))||old.jenisTagihan||'Piutang';
+  const kel=deliveryTitleCase(String(get('Kelurahan')||old.kel||'').trim()),wp=String(get('Wajib Pajak')||old.wp||'').trim();
+  if(!RB_KELS.includes(kel)||!wp)throw Error('NOPD '+nop+': nama wajib pajak atau kelurahan tidak valid.');
+  const number=(...keys)=>{const v=get(...keys);return v===''?null:pkNumber(v,keys[0]);};
+  const amounts=pkResolveAmounts(old,kind,{debt:number('Nilai Piutang'),current:number('Nilai Tahun Berjalan'),total:number('Nilai Prioritas','Grand Total')});
+  const years=Number(get('Jumlah Tahun')||old.jmlTahun||0);if(!Number.isInteger(years)||years<0)throw Error('Jumlah Tahun tidak valid untuk '+nop);
+  masters.set(nop,pkMasterRow({...old,nop,kel,kelurahan:kel,wp,jenisTagihan:kind,...amounts,tahunAcuan:Number(get('Tahun Acuan')||old.tahunAcuan||releaseYear()),jmlTahun:years,alamatOp:String(get('Alamat Objek')||old.alamatOp||''),alamatWp:String(get('Alamat WP')||old.alamatWp||''),maps:String(get('Google Map','Maps')||old.maps||''),ket:String(get('Catatan')||old.ket||''),himbauan1:old.himbauan1||String(get('Himbauan 1')||'Belum Dikirim'),deliverySource:old.deliverySource||String(get('Status Penyampaian')||'Belum Diupdate'),keterangan:old.keterangan||String(get('Keterangan')||''),keteranganLain:old.keteranganLain||String(get('Keterangan Lainnya')||'')}));
+ }
+ return {masters:[...masters.values()],yearDetails:prepared.yearDetails};
+}
+function saktiHybridDebtPlan(wb){
+ const {rows,hi,headers}=saktiHybridGrid(wb),ni=headers.findIndex(h=>['NOP','NOPD'].includes(h)),years=headers.map((h,c)=>/^THN\d{4}$/.test(h)?[c,Number(h.slice(3))]:null).filter(Boolean);if(!years.length)throw Error('Kolom Thn2026/Thn2025/... tidak ditemukan.');
+ const result={};for(const row of rows.slice(hi+1)){if(row.every(v=>v===''||v===null))continue;const nop=String(row[ni]).trim();result[nop]=years.map(([c,y])=>[y,String(row[c]??'').trim()===''?0:pkNumber(row[c],'Piutang '+nop+' tahun '+y)]).filter(([,n])=>n>0);}
+ return result;
+}
+function saktiHybridSnapshot(key){switch(key){case 'overview':return {overviewData,overviewAllData,monthlyTaxData,overviewCutoff,overviewTaxOrder,selectedTaxes};case 'dhkp':return {dhkpData,dhkpMeta,dhkpPreloadedStats};case 'payment':return {pbbPaymentData,pbbPaymentMeta,pbbPaymentPreloadedStats:structuredClone(pbbPaymentPreloadedStats)};case 'history':return {pbbHistoryData,pbbHistoryMeta};case 'priority':return {pbbPriorityData,pbbPriorityMeta,priorityDebtOverride};case 'debt':return {priorityDebtOverride};case 'due':return {pbbDueOverrides};}}
+function saktiHybridRestore(key,s){
+ if(key==='overview')({overviewData,overviewAllData,monthlyTaxData,overviewCutoff,overviewTaxOrder,selectedTaxes}=s);
+ else if(key==='dhkp')({dhkpData,dhkpMeta,dhkpPreloadedStats}=s);
+ else if(key==='payment')({pbbPaymentData,pbbPaymentMeta,pbbPaymentPreloadedStats}=s);
+ else if(key==='history')({pbbHistoryData,pbbHistoryMeta}=s);
+ else if(key==='priority')({pbbPriorityData,pbbPriorityMeta,priorityDebtOverride}=s);
+ else if(key==='debt')({priorityDebtOverride}=s);
+ else if(key==='due')({pbbDueOverrides}=s);
+}
+function saktiHybridApply(source,wb){
+ saktiHybridValidate(wb,source.key);const previous=saktiHybridSnapshot(source.key);let coverage,coverageValue;
+ try{
+  if(['overview','dhkp','payment','history'].includes(source.key)){
+   // The configured sources refresh data; they do not grant manual edit permissions.
+   if(source.key==='payment'){coverage=document.getElementById('pbbPaymentCoverage');if(coverage){coverageValue=coverage.value;coverage.value='cumulative';}}
+   const result=SAKTI_HYBRID_BASE_BUILDERS[source.key](wb,source.name);if(result?.partial)throw Error('Sumber pembayaran otomatis harus kumulatif.');
+  }else if(source.key==='priority'){
+   const plan=saktiHybridPriorityPlan(wb);pbbPriorityData=plan.masters;pbbPriorityMeta={...pbbPriorityMeta,source:source.name,rows:plan.masters.length,dataDate:pbbSourceDateLabel(pbbSourceWorkbookDate(wb,'priority')),importedAt:new Date().toISOString()};
+   // Operational notes and every delivery history remain in their existing stores.
+   if(Object.keys(plan.yearDetails||{}).length){const next={...priorityDebtActive()};for(const [nop,pairs]of Object.entries(plan.yearDetails))next[nop]=pairs;priorityDebtOverride=next;}
+  }else if(source.key==='debt')priorityDebtOverride=saktiHybridDebtPlan(wb);
+  else if(source.key==='due'){const plan=pbbDuePlan(wb),next={...pbbDueOverrides,...plan};localStorage.setItem(PBB_DUE_KEY,JSON.stringify(next));pbbDueOverrides=next;}
+ }catch(error){saktiHybridRestore(source.key,previous);throw error;}finally{if(coverage)coverage.value=coverageValue;}
+}
+async function saktiHybridWaitReady(){const start=Date.now();while(!releaseReady){if(Date.now()-start>25000)throw Error('Dashboard belum selesai memuat penyimpanan lokal. Gunakan Sinkronkan Ulang setelah siap.');await new Promise(r=>setTimeout(r,100));}}
+async function saktiHybridSync(){
+ if(saktiHybridBusy)return;saktiHybridBusy=true;saktiHybridStarted=true;const revisions={...saktiHybridManualRevision};
+ for(const source of SAKTI_HYBRID_SOURCES)saktiHybridStatus(source,'loading','Mengambil '+source.name+' dari sumber Excel…');
+ const fetched=new Map();let cursor=0;
+ const download=async()=>{while(cursor<SAKTI_HYBRID_SOURCES.length){const source=SAKTI_HYBRID_SOURCES[cursor++];try{fetched.set(source.key,{wb:await saktiHybridFetch(source)});}catch(error){fetched.set(source.key,{error});saktiHybridStatus(source,'error',error.message+' Data terakhir tetap digunakan.');}}};
+ try{
+  await Promise.allSettled([download(),download()]);await saktiHybridWaitReady();
+  const refreshNames=['renderTaxOptions','updateOverviewTaxView','applyOverviewCutoff','updatePbbPerformanceDashboard','updatePbbPaymentDashboard','updatePbbDownloadDashboard','dashboardRefreshProfiling','renderPbbBehaviorPanel','renderPriorityReal','renderPriorityReasonPanel','renderDeliveryMonitor','priorityRenderLetterPreview','priorityNotificationRefresh','updatePbbCutoffChip','opProfileUpdateDataStatus'];
+  const saved={};for(const name of refreshNames)if(typeof window[name]==='function'){saved[name]=window[name];window[name]=()=>{};}
+  saktiHybridApplying=true;let applied=0;
+  try{
+   for(const source of SAKTI_HYBRID_SOURCES){
+    const item=fetched.get(source.key);if(item?.error||!item?.wb)continue;
+    if((saktiHybridManualRevision[source.key]||0)!==(revisions[source.key]||0)){saktiHybridStatus(source,'available','Sinkronisasi dilewati: sumber ini baru diperbarui secara manual.');continue;}
+    try{saktiHybridApply(source,item.wb);applied++;saktiHybridStatus(source,'success','Sinkronisasi otomatis berhasil: '+source.name+'. Data telah divalidasi dan diterapkan.');}
+    catch(error){saktiHybridStatus(source,'error','Sinkronisasi gagal: '+error.message+' Data terakhir sumber ini tetap digunakan.');}
+    fetched.delete(source.key);await new Promise(resolve=>setTimeout(resolve,0));
+   }
+  }finally{for(const [name,fn]of Object.entries(saved))window[name]=fn;saktiHybridApplying=false;}
+  if(applied){releaseInvalidate();renderTaxOptions();applyOverviewCutoff();releaseRefresh();priorityDebtInfoRender();pbbDueRender();pbbRefreshDateLabels();
+   if(rbUser())rbApplyControls();
+   try{await releasePersist('Sinkronisasi sumber Hybrid');}catch(error){document.getElementById('saktiHybridStorageNotice').textContent='Data diperbarui di layar, tetapi belum tersimpan pada perangkat: '+error.message;}
+  }
+ }catch(error){for(const source of SAKTI_HYBRID_SOURCES)if(saktiHybridView[source.key]==='loading')saktiHybridStatus(source,'error',error.message+' Data terakhir tetap digunakan.');}
+ finally{saktiHybridBusy=false;try{localStorage.setItem(IMPORT_MATRIX_KEY,JSON.stringify(importMatrixMeta));}catch(e){}saktiHybridPaint();}
+}
+// Preserve responsiveness while the existing data builders validate a staged batch.
+(function(){
+ for(const [key,,inputId]of IMPORT_MATRIX_SOURCES){const input=document.getElementById(inputId),mark=()=>{saktiHybridManualRevision[key]=(saktiHybridManualRevision[key]||0)+1;};input?.addEventListener('change',mark,true);document.getElementById('importDialog-'+key)?.addEventListener('drop',mark,true);}
+ const start=()=>{if(!saktiHybridStarted)saktiHybridSync();};if(document.readyState==='complete')start();else window.addEventListener('load',start,{once:true});
+})();
 </script>
 </body>
 </html>

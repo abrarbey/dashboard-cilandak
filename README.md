@@ -1,49 +1,47 @@
-# Dashboard Kolaborasi — GitHub Pages
+# Dashboard SAKTI — versi 137
 
-Paket statis dari Dashboard Kolaborasi (Matriks Import dan Export).
+Ketujuh sumber otomatis sekarang menggunakan file Excel dari Google Drive. Halaman mengambil data saat selesai dimuat dan menampilkan data terakhir selama proses pengunduhan. File tidak perlu diunggah manual setiap kali membuka dashboard.
 
-## Isi paket
+## Memasang di GitHub Pages
 
-- `index.html`: aplikasi lengkap beserta data, gambar, font, dan pembaca Excel.
-- `.nojekyll`: menayangkan file sebagai situs statis tanpa pemrosesan Jekyll.
-- `README.md`: panduan ini.
+1. Ekstrak ZIP ini di komputer.
+2. Buka repository GitHub yang digunakan untuk dashboard.
+3. Pilih Add file → Upload files.
+4. Unggah index.html, .nojekyll, README.md dan VALIDASI_SUMBER.txt ke direktori paling atas repository. Jangan mengunggah file ZIP sebagai halaman situs.
+5. Commit changes. Jika index.html sudah ada, gantikan file lama.
+6. Settings → Pages → Source: Deploy from a branch → branch main → folder /(root) → Save. Jika repository menggunakan branch lain, pilih branch tempat file diunggah.
+7. Buka alamat yang ditampilkan GitHub Pages. Bila masih terlihat versi lama, tekan Ctrl+F5.
 
-Tidak membutuhkan Node.js, instalasi paket, atau proses build.
+## Sumber yang terhubung
 
-## Mengunggah melalui browser
+- Overview.xlsx
+- DHKP_Unduhan_SPPT.xlsx
+- Pembayaran_PBB.xlsx
+- Riwayat_Pembayaran.xlsx
+- Prioritas_Himbauan.xlsx
+- Rincian_Piutang_Tahunan.xlsx
+- Jatuh_Tempo_PBB.xlsx
 
-1. Ekstrak ZIP ini di komputer. Jangan mengunggah file ZIP langsung sebagai situs.
-2. Buka repository GitHub tujuan, atau buat repository baru.
-3. Pilih **Add file → Upload files**.
-4. Unggah `index.html`, `.nojekyll`, dan `README.md` langsung ke bagian paling atas repository. Jangan menaruhnya di dalam folder tambahan.
-5. Klik **Commit changes**.
-6. Buka **Settings → Pages**.
-7. Pada **Build and deployment → Source**, pilih **Deploy from a branch**.
-8. Pilih branch **main** dan folder **/(root)**, lalu klik **Save**. Bila branch repository memakai nama lain, pilih branch tempat file diunggah.
-9. Tunggu proses publikasi selesai, lalu buka tautan situs yang ditampilkan pada halaman Pages.
+URL sumber berada di SAKTI_HYBRID_SOURCES pada index.html. Seluruh type bernilai xlsx. Unduhan menggunakan fetch + arrayBuffer, lalu XLSX.read melalui Web Worker jika tersedia. Dua sumber diunduh secara paralel agar penggunaan memori terkendali. Mekanisme pembaca CSV tetap tersedia di kode untuk kompatibilitas, tetapi tidak dipakai oleh ketujuh sumber otomatis ini.
 
-Alamat umumnya berbentuk `https://USERNAME.github.io/NAMA-REPOSITORY/`. Gunakan tautan yang benar-benar ditampilkan GitHub untuk repository Anda.
+## Memperbarui data
 
-Panduan resmi: https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site
+Perbarui isi file Google Drive yang sama agar ID tautannya tetap. Jangan menghapus file lama dan membuat file baru jika ingin mempertahankan tautan. Nama sheet dan header tetap mengikuti format yang sudah diuji.
 
-## Menggunakan dan memperbarui data
+Setelah pembaruan tersimpan di Drive, buka ulang dashboard atau pilih Data & Import → Sinkronkan Ulang. Waktu Google menyiapkan hasil ekspor dapat memengaruhi kapan perubahan terlihat.
 
-- Buka situs melalui tautan GitHub Pages, lalu gunakan akun dashboard yang tersedia.
-- Data & Import menyediakan tujuh sumber data dengan tombol Upload dan Export.
-- Upload membuka pop up unggah, dan Export mengunduh seluruh data aktif untuk sumber tersebut.
-- File Excel yang diunggah tidak otomatis ditulis ke repository GitHub.
-- Pengaturan dan pembaruan lokal mengikuti penyimpanan browser yang sudah digunakan aplikasi. Data tidak otomatis dibagikan ke perangkat atau pengguna lain.
-- Domain GitHub Pages memiliki penyimpanan browser yang terpisah dari file HTML lokal. Ekspor/cadangkan data dari penggunaan sebelumnya sebelum berpindah, lalu impor di situs bila diperlukan.
-- Untuk memperbarui kode aplikasi, gantikan `index.html` pada repository dengan versi baru dan commit perubahan. Jika tampilan lama masih muncul, muat ulang dengan Ctrl+F5.
+Upload manual dan Export tetap tersedia sesuai hak akses. Bila sumber diunggah manual saat sinkronisasi berjalan, pembaruan otomatis sumber itu dilewati agar unggahan baru tidak tertimpa.
 
-## Akses dan data wajib pajak
+## Validasi dan kegagalan
 
-HTML ini memuat data wajib pajak di dalam kode sumbernya. Orang yang dapat mengakses situs dapat mengunduh file HTML beserta data tertanam tersebut. Role dan login pada aplikasi statis ini bekerja di browser dan tidak menjadi pengamanan data pada server.
+NOPD wajib teks 18 digit lengkap. Kolom, angka dan tanggal diperiksa sebelum sumber diterapkan. Riwayat penyampaian, catatan operasional dan pengaturan hak akses tetap dipertahankan. Data prioritas diperbarui/ditambah menurut NOPD; objek lain tidak dihapus otomatis.
 
-Paket ini mempertahankan mode aplikasi yang ada (`internal`, tanpa backend). Paket tidak menambahkan autentikasi server, sinkronisasi antarperangkat, penyimpanan Google Drive, atau database bersama. Pastikan lokasi publikasi dan pihak yang dapat mengaksesnya sesuai dengan penggunaan data Anda.
+Sumber gagal karena izin, jaringan, CORS, format, atau data tidak valid akan ditandai Gagal dalam matriks Data & Import. Data terakhir sumber tersebut tetap dipakai. Buka status untuk melihat penjelasannya. Rincian pemeriksaan awal ada di VALIDASI_SUMBER.txt.
 
-Paket ini disiapkan untuk unggah manual. Situs belum dipublikasikan oleh pembuat paket.
+Data aktif disimpan melalui penyimpanan browser yang sudah ada. Jika penyimpanan gagal, peringatan ditampilkan. Login akun SAKTI tetap lokal; tidak menambahkan autentikasi Google atau backend. Unduhan memakai URL yang dapat diakses tanpa cookie Google. Perubahan izin Drive dapat menghentikan pengambilan otomatis.
 
-## Perubahan versi 133
+## Akses data
 
-Label identitas pegawai menggunakan NIP. Password baru dan reset password minimal 4 karakter. Identitas akun dan data yang sudah tersimpan tetap kompatibel.
+HTML memuat data wajib pajak dan tautan sumber. Orang yang dapat mengakses situs dapat membaca kode/data tersebut. Role dan login lokal bukan pengamanan server. Pastikan akses publikasi sesuai penggunaan data.
+
+Tidak perlu Node.js, npm, atau proses build. Situs belum dipublikasikan oleh pembuat paket.
