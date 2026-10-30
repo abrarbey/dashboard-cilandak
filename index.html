@@ -13,7 +13,7 @@ window.DASHBOARD_CONFIG={mode:'internal',apiBase:''};
 <meta name="description" content="Dashboard Kolaborasi PBB-P2 — UPPPD, Kecamatan dan Kelurahan Cilandak."/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<title>Dashboard Kolaborasi v7.84.75.29 — PKA & Hosting</title>
+<title>upppdcilandak</title>
 
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 
@@ -13006,7 +13006,7 @@ document.addEventListener('DOMContentLoaded',()=>{pbbSyncAdminTargets();});
   <div class="headerrow">
     <div>
       <h1>Data &amp; Import</h1>
-      <div class="sub">Tujuh sumber data · Upload untuk memperbarui, Export untuk melihat seluruh data aktif.</div>
+      <div class="sub">Delapan sumber data · Tujuh sumber Excel dan Monitoring Google Sheets. Impor Excel tidak mengubah Google Sheets.</div>
     </div>
   </div>
 
@@ -21200,6 +21200,155 @@ async function saktiHybridSync(){
  for(const [key,,inputId]of IMPORT_MATRIX_SOURCES){const input=document.getElementById(inputId),mark=()=>{saktiHybridManualRevision[key]=(saktiHybridManualRevision[key]||0)+1;};input?.addEventListener('change',mark,true);document.getElementById('importDialog-'+key)?.addEventListener('drop',mark,true);}
  const start=()=>{if(!saktiHybridStarted)saktiHybridSync();};if(document.readyState==='complete')start();else window.addEventListener('load',start,{once:true});
 })();
+</script>
+<script id="sakti-monitor-v138">
+/* Monitoring Google Sheets v138. Akses server terpisah dari login lokal HTML. */
+const SAKTI_MONITOR_SHEET='https://docs.google.com/spreadsheets/d/1kipq_qkXpaC65M9gaLm4_VfGZUs_y_yPSXFP_QMqPGU/edit';
+const saktiMonitor={records:new Map(),source:null,sourceOrigin:'',channel:'',iframe:null,ready:null,waiting:new Map(),auth:null,busy:false,paused:false,at:'',formBase:null,formDirty:false,guidanceBases:new Map(),epoch:0};
+const SAKTI_MONITOR_ENDPOINT=''; // Opsional: isi URL /exec di sini agar semua perangkat memakai alamat yang sama.
+function monitorUserNip(){return String(typeof rbUser==='function'?rbUser()?.nik||'':'');}
+function monitorEndpoint(){return SAKTI_MONITOR_ENDPOINT||localStorage.getItem('sakti-monitor-endpoint-v138')||'';}
+function monitorStatus(text,error=false){document.querySelectorAll('[data-monitor-status]').forEach(el=>{el.textContent=text;el.style.color=error?'var(--danger,#d9344b)':'';});}
+function monitorKey(nop,year,stage){return nop+'|'+year+'|'+stage;}
+function monitorActiveYear(nop){return Number(priorityActiveMaster().find(r=>String(r.nop)===String(nop))?.tahunAcuan)||Number(typeof releaseYear==='function'?releaseYear():2026);}
+function monitorCloudRow(r){return {nop:r.nop,kel:r.village,kelurahan:r.village,wp:r.name,jpbLabel:r.jpb,maps:r.map,ket:r.note,jenisTagihan:r.kind||'Piutang',nilaiPiutang:Number(r.debt)||0,nilaiTahunBerjalan:Number(r.current)||0,grandTotal:(Number(r.debt)||0)+(Number(r.current)||0),tahunAcuan:r.year};}
+function monitorStage(r){return {delivery:r.delivery||'Belum Diupdate',reasonCategory:r.reason||'',reasonOther:r.other||'',deliveryDate:r.date||'',receiver:r.receiver||'',officer:r.officer||'',updatedAt:r.updated||'',updatedBy:r.actor||''};}
+function monitorRefreshViews(){renderPriorityReal();renderDeliveryMonitor();if(typeof importMatrixRender==='function')importMatrixRender();}
+function monitorApply(rows,full=false){
+ const valid=new Map();
+ for(const r of rows){if(!r||!/^\d{18}$/.test(r.nop)||!['Himbauan 1','Himbauan 2','Himbauan 3'].includes(r.stage)||!Number.isInteger(r.year)||r.key!==monitorKey(r.nop,r.year,r.stage)||typeof r.revision!=='string'||valid.has(r.key))throw Error('Data Monitoring dari server tidak valid / ganda.');valid.set(r.key,r);}
+ if(full)saktiMonitor.records=valid;else for(const [k,r]of valid)saktiMonitor.records.set(k,r);
+ const guides=new Map(),years=new Map(priorityActiveMaster().map(r=>[String(r.nop),Number(r.tahunAcuan)])),fallbackYear=Number(releaseYear());
+ for(const r of saktiMonitor.records.values()){
+  if(r.year!==(years.get(r.nop)||fallbackYear))continue;
+  const prev=priorityOpsState[r.nop]||{},stage=monitorStage(r);
+  priorityOpsState[r.nop]={...prev,catatan:r.note||'',deliveryStages:{...prev.deliveryStages,[r.stage]:stage},...(r.stage==='Himbauan 1'?stage:{})};
+  const old=guides.get(r.nop);if(!old||String(r.updated)>String(old.updated))guides.set(r.nop,r);
+ }
+ for(const [nop,r]of guides){if(saktiMonitor.guidanceBases.has(nop))continue;guidanceStore[nop]={...(guidanceStore[nop]||{}),arahan:r.guidance||'',status:r.followup||'Belum Ditindaklanjuti',updatedAt:r.updated||'',updatedBy:r.actor||'',source:'Google Sheets Monitoring'};}
+ // Jangan timpa isian formulir yang sedang diketik.
+ if(!saktiMonitor.formDirty){const nop=document.getElementById('deliveryNop')?.value||'',stage=document.getElementById('deliveryLetterType')?.value||'Himbauan 1';const r=saktiMonitor.records.get(monitorKey(nop,monitorActiveYear(nop),stage));if(r){deliveryLoadStage();}}
+ monitorRefreshViews();
+}
+function monitorAuthCurrent(){return saktiMonitor.auth&&saktiMonitor.auth.nip===monitorUserNip();}
+function monitorDropBridge(){saktiMonitor.epoch++;for(const p of saktiMonitor.waiting.values()){clearTimeout(p.timer);p.reject(Error('Koneksi Monitoring diubah / dihentikan.'));}saktiMonitor.waiting.clear();saktiMonitor.iframe?.remove();saktiMonitor.source=null;saktiMonitor.ready=null;saktiMonitor.iframe=null;}
+function monitorBridge(){
+ if(saktiMonitor.ready)return saktiMonitor.ready;
+ const endpoint=monitorEndpoint();if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(endpoint))throw Error('Isi URL Apps Script yang berakhiran /exec pada Pengaturan Koneksi.');
+ if(location.protocol!=='https:')throw Error('Buka dashboard melalui alamat HTTPS GitHub Pages untuk koneksi Google Sheets.');
+ saktiMonitor.channel=Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,'0')).join('');
+ saktiMonitor.ready=new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>{saktiMonitor.ready=null;reject(Error('Penghubung belum merespons. Periksa pengaturan deployment Apps Script dan alamat dashboard.'));},30000);
+  saktiMonitor.bridgeResolve=()=>{clearTimeout(timer);resolve();};
+  const frame=document.createElement('iframe');frame.hidden=true;frame.title='Penghubung Monitoring Google Sheets';frame.src=endpoint+'?origin='+encodeURIComponent(location.origin)+'&channel='+saktiMonitor.channel;saktiMonitor.iframe=frame;document.body.append(frame);
+ });return saktiMonitor.ready;
+}
+window.addEventListener('message',event=>{
+ const m=event.data;
+ if(!m||m.saktiMonitor!==1||m.channel!==saktiMonitor.channel||!/^https:\/\/[a-z0-9-]+\.googleusercontent\.com$/.test(event.origin))return;
+ if(m.kind==='ready'&&!saktiMonitor.source){saktiMonitor.source=event.source;saktiMonitor.sourceOrigin=event.origin;saktiMonitor.bridgeResolve?.();return;}
+ if(event.source!==saktiMonitor.source||event.origin!==saktiMonitor.sourceOrigin||m.kind!=='response')return;
+ const pending=saktiMonitor.waiting.get(m.id);if(!pending)return;clearTimeout(pending.timer);saktiMonitor.waiting.delete(m.id);
+ m.result?.ok?pending.resolve(m.result):pending.reject(Error(m.result?.error||'Penyimpanan Google Sheets belum dikonfirmasi.'));
+});
+async function monitorRpc(action,data){
+ if(!monitorAuthCurrent())throw Error('Hubungkan akun Monitoring melalui Pengaturan Koneksi terlebih dahulu.');
+ await monitorBridge();
+ if(!monitorAuthCurrent())throw Error('Akun dashboard berubah. Hubungkan kembali Monitoring.');
+ const id=crypto.randomUUID(),nip=monitorUserNip(),epoch=saktiMonitor.epoch;return new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>{saktiMonitor.waiting.delete(id);reject(Error('Respons Google Sheets melewati batas waktu. Hasil simpan belum dapat dipastikan; Segarkan Data sebelum mencoba kembali.'));},45000);
+  saktiMonitor.waiting.set(id,{resolve:result=>{if(nip!==monitorUserNip()||epoch!==saktiMonitor.epoch){reject(Error('Akun / koneksi berubah. Muat ulang data Monitoring.'));return;}resolve(result);},reject,timer});
+  saktiMonitor.source.postMessage({saktiMonitor:1,channel:saktiMonitor.channel,kind:'request',id,request:{action,data,auth:saktiMonitor.auth}},saktiMonitor.sourceOrigin);
+ });
+}
+async function monitorSync(manual=false){
+ if(manual){if((saktiMonitor.formDirty||saktiMonitor.guidanceBases.size)&&!confirm('Segarkan dari Google Sheets? Isian yang belum tersimpan akan dimuat ulang.'))return;saktiMonitor.paused=false;saktiMonitor.formDirty=false;saktiMonitor.guidanceBases.clear();}
+ if(saktiMonitor.busy||saktiMonitor.paused||(!manual&&(saktiMonitor.formDirty||saktiMonitor.guidanceBases.size))||!monitorAuthCurrent()||!releaseReady)return;
+ saktiMonitor.busy=true;const epoch=saktiMonitor.epoch,nip=monitorUserNip();
+ try{monitorStatus('Memeriksa Google Sheets…');const result=await monitorRpc('read');if(epoch!==saktiMonitor.epoch||nip!==monitorUserNip())return;
+  monitorApply(result.rows,true);saktiMonitor.at=result.at;
+  monitorStatus('Terhubung · '+result.rows.length.toLocaleString('id-ID')+' catatan · diperiksa '+new Date(result.at).toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta'}));
+  try{await deliveryPersist();}catch(e){monitorStatus('Data Sheets sudah tampil; salinan pada perangkat belum tersimpan.',true);}
+ }catch(e){monitorStatus('Sinkronisasi gagal: '+e.message,true);}finally{saktiMonitor.busy=false;}
+}
+function monitorOpenSettings(){
+ const d=document.getElementById('monitorConnectionDialog');document.getElementById('monitorEndpoint').value=monitorEndpoint();document.getElementById('monitorNip').value=monitorUserNip();document.getElementById('monitorCode').value='';document.getElementById('monitorConnectResult').textContent='';d.showModal();
+}
+async function monitorConnect(){
+ const report=document.getElementById('monitorConnectResult'),button=document.getElementById('monitorConnectButton');button.disabled=true;
+ try{const endpoint=document.getElementById('monitorEndpoint').value.trim(),nip=monitorUserNip(),code=document.getElementById('monitorCode').value.trim();
+  if(!/^\d{18}$/.test(nip))throw Error('Masuk ke dashboard dengan NIP yang telah didaftarkan.');
+  if(!/^[a-f0-9]{64}$/.test(code))throw Error('Tempel kode akses pribadi dari administrator (64 karakter).');
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(endpoint))throw Error('Tempel URL deployment Apps Script yang berakhiran /exec.');
+  monitorDropBridge();saktiMonitor.auth={nip,code};localStorage.setItem('sakti-monitor-endpoint-v138',endpoint);report.textContent='Memeriksa akses…';
+  const result=await monitorRpc('read');monitorApply(result.rows,true);saktiMonitor.at=result.at;saktiMonitor.paused=false;
+  sessionStorage.setItem('sakti-monitor-auth-v138',JSON.stringify(saktiMonitor.auth));
+  report.textContent='Terhubung sebagai '+result.user.name+'.';monitorStatus('Terhubung · '+result.rows.length+' catatan · pembaruan otomatis setiap 60 detik');
+  document.getElementById('monitorCode').value='';document.getElementById('monitorConnectionDialog').close();try{await deliveryPersist();}catch(e){monitorStatus('Terhubung; salinan data perangkat belum tersimpan.',true);}
+ }catch(e){saktiMonitor.auth=null;sessionStorage.removeItem('sakti-monitor-auth-v138');report.textContent=e.message;monitorStatus('Belum terhubung',true);}finally{button.disabled=false;}
+}
+function monitorDisconnect(){monitorDropBridge();saktiMonitor.auth=null;saktiMonitor.formBase=null;saktiMonitor.formDirty=false;saktiMonitor.guidanceBases.clear();sessionStorage.removeItem('sakti-monitor-auth-v138');monitorStatus('Koneksi dihentikan · perubahan selanjutnya hanya tersimpan pada perangkat');}
+function monitorInit(){
+ const delivery=document.getElementById('delivery');if(!delivery)return;
+ const box=document.createElement('div');box.className='card';box.style.cssText='margin:10px 0;padding:12px';box.innerHTML='<strong>Monitoring · Google Sheets</strong><p data-monitor-status style="margin:6px 0;font-size:12px" role="status">Belum terhubung · buka Pengaturan Koneksi untuk mengaktifkan sinkronisasi</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="monitorOpenSettings()">Pengaturan Koneksi</button><button class="btn" onclick="monitorSync(true)">Segarkan Data</button><button class="btn" onclick="monitorDisconnect()">Putuskan Koneksi</button></div>';delivery.prepend(box);
+ const dialog=document.createElement('dialog');dialog.id='monitorConnectionDialog';dialog.className='import-dialog';dialog.style.cssText='max-width:600px;width:calc(100% - 32px);border-radius:16px;border:1px solid #8798ba;padding:22px';dialog.innerHTML='<h3>Koneksi Monitoring Google Sheets</h3><p>Masukkan alamat Apps Script dan kode akses pribadi yang diberikan administrator. Kode berbeda dari password sign-in dashboard.</p><div class="field"><label for="monitorEndpoint">Alamat Apps Script (berakhiran /exec)</label><input id="monitorEndpoint" type="url" style="width:100%"></div><div class="field"><label for="monitorNip">NIP akun dashboard</label><input id="monitorNip" readonly style="width:100%"></div><div class="field"><label for="monitorCode">Kode akses pribadi Monitoring</label><input id="monitorCode" type="password" autocomplete="off" style="width:100%"></div><p id="monitorConnectResult" role="status"></p><div style="display:flex;gap:8px;margin-top:14px"><button class="btn primary" id="monitorConnectButton" onclick="monitorConnect()">Hubungkan</button><button class="btn" onclick="document.getElementById(\'monitorConnectionDialog\').close()">Tutup</button></div>';document.body.append(dialog);
+ for(const id of ['deliveryNop','deliveryLetterType','deliveryStatus','deliveryDate','deliveryReceiver','deliveryOfficer','deliveryReasonCategory','deliveryReasonOther'])document.getElementById(id)?.addEventListener('input',()=>{saktiMonitor.formDirty=true;});
+ document.addEventListener('focusin',event=>{const el=event.target;if(el.matches?.('.guidance-input,.guidance-status')&&monitorAuthCurrent()){const nop=el.dataset.guidanceId;if(!saktiMonitor.guidanceBases.has(nop))saktiMonitor.guidanceBases.set(nop,Object.fromEntries([...saktiMonitor.records.values()].filter(r=>r.nop===nop&&r.year===monitorActiveYear(nop)).map(r=>[r.key,r.revision])));}});
+ try{const a=JSON.parse(sessionStorage.getItem('sakti-monitor-auth-v138')||'null');if(a&&a.nip===monitorUserNip())saktiMonitor.auth=a;}catch(e){}
+ const wait=setInterval(()=>{if(!releaseReady)return;clearInterval(wait);monitorSync();},1000);setTimeout(()=>clearInterval(wait),60000);
+ setInterval(()=>{if(saktiMonitor.auth&&saktiMonitor.auth.nip!==monitorUserNip()){monitorDisconnect();return;}if(!document.hidden)monitorSync();},60000);
+}
+// Pembacaan Sheets tidak membuat riwayat perubahan lokal palsu.
+const monitorOriginalLoad=deliveryLoadStage;
+deliveryLoadStage=function(...args){const result=monitorOriginalLoad.apply(this,args);const nop=document.getElementById('deliveryNop')?.value||'',stage=document.getElementById('deliveryLetterType')?.value||'Himbauan 1',key=monitorKey(nop,monitorActiveYear(nop),stage);const r=saktiMonitor.records.get(key);if(r&&!priorityActiveMaster().some(x=>String(x.nop)===nop)){
+ document.getElementById('deliveryStatus').value=r.delivery==='Sudah Sampai'?'Sampai':r.delivery==='Belum Sampai'?'Tidak Sampai':'Belum Diupdate';
+ document.getElementById('deliveryDate').value=r.date||priorityLetterTodayJakarta();document.getElementById('deliveryReasonCategory').value=r.reason||'';deliveryToggleOtherReason();document.getElementById('deliveryReasonOther').value=r.other||'';document.getElementById('deliveryReceiver').value=r.receiver||'Wajib Pajak';document.getElementById('deliveryOfficer').value=r.officer||'';if(typeof deliveryReasonPickerSync==='function')deliveryReasonPickerSync();
+ }saktiMonitor.formBase={key,revision:r?.revision||''};saktiMonitor.formDirty=false;return result;};
+const monitorOriginalSave=saveDeliveryLocal;
+saveDeliveryLocal=async function(){
+ if(!monitorEndpoint())return monitorOriginalSave();
+ if(!monitorAuthCurrent()){alert('Monitoring belum terhubung. Buka Pengaturan Koneksi sebelum menyimpan ke Google Sheets.');return;}
+ if(saktiMonitor.busy){alert('Tunggu pemeriksaan / penyimpanan Google Sheets selesai.');return;}
+ const get=id=>String(document.getElementById(id)?.value||'').trim(),nop=get('deliveryNop'),stage=get('deliveryLetterType'),year=monitorActiveYear(nop),key=monitorKey(nop,year,stage),record=saktiMonitor.records.get(key);
+ if(!record){alert('Catatan ini belum ada pada Google Sheets. Tambahkan NOP, Kelurahan, Himbauan, dan Tahun Acuan di Sheets lalu Segarkan Data.');return;}
+ if(!rbCanNop(nop)&&!rbAllowedRow({nop,kel:record.village})){alert('Objek di luar kewenangan akun.');return;}
+ if(!rbCanWrite()||!rbCanStage(stage)){alert('Tahap Himbauan di luar kewenangan akun.');return;}
+ const base=saktiMonitor.formBase;
+ if(!base||base.key!==key||!base.revision){alert('Klik NOP pada matriks untuk memuat catatan terbaru sebelum menyimpan.');return;}
+ const patch={delivery:get('deliveryStatus')==='Sampai'?'Sudah Sampai':get('deliveryStatus')==='Tidak Sampai'?'Belum Sampai':'Belum Diupdate',reason:get('deliveryReasonCategory'),other:get('deliveryReasonOther'),date:get('deliveryDate'),receiver:get('deliveryReceiver'),officer:get('deliveryOfficer')};
+ const priorOps=structuredClone(priorityOpsState[nop]||{});const button=document.querySelector('#delivery button[onclick="saveDeliveryLocal()"]');saktiMonitor.busy=true;if(button)button.disabled=true;
+ try{const result=await monitorRpc('saveDelivery',{key,revision:base.revision,patch});saktiMonitor.formDirty=false;monitorApply(result.rows);priorityOpsState[nop].deliveryHistory=[...(priorOps.deliveryHistory||[]),{stage,before:priorOps.deliveryStages?.[stage]||null,after:structuredClone(priorityOpsState[nop].deliveryStages[stage]),at:result.at,actor:result.user.name,actorNik:result.user.nip,publisher:'Google Sheets Monitoring'}];saktiMonitor.formBase={key,revision:saktiMonitor.records.get(key)?.revision};monitorStatus('Berhasil disimpan ke Google Sheets · '+new Date(result.at).toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta'}));
+  try{await deliveryPersist();}catch(e){monitorStatus('Sudah tersimpan di Google Sheets; salinan perangkat belum tersimpan.',true);}
+  alert(stage+' untuk NOPD '+nop+' berhasil disimpan ke Google Sheets.');
+ }catch(e){monitorStatus('Belum dikonfirmasi tersimpan: '+e.message,true);alert(e.message);}finally{saktiMonitor.busy=false;if(button)button.disabled=false;}
+};
+const monitorOriginalRows=deliveryRowsEnriched;
+deliveryRowsEnriched=function(){
+ const rows=monitorOriginalRows(),keys=new Set(rows.map(r=>monitorKey(r.nop,Number(r.tahunAcuan)||2026,r.letterType))),years=new Map(priorityActiveMaster().map(r=>[String(r.nop),Number(r.tahunAcuan)])),fallbackYear=Number(releaseYear());
+ for(const r of saktiMonitor.records.values()){if(r.year!==(years.get(r.nop)||fallbackYear)||keys.has(r.key))continue;if(typeof rbRows==='function'&&!rbRows([monitorCloudRow(r)]).length)continue;const row=pkMasterRow(monitorCloudRow(r));rows.push({...row,...pkPaymentFor(row),jpbLabel:r.jpb||'Tidak Teridentifikasi',letterType:r.stage,ops:monitorStage(r),keterangan:r.reason||'',keteranganLain:r.other||''});}
+ return rows;
+};
+// Arahan/status tindak lanjut pada matriks memakai NOP bersama, seperti perilaku dashboard sebelumnya.
+const monitorOriginalGuidance=guidanceSaveNow;
+guidanceSaveNow=async function(el){
+ if(!monitorEndpoint())return monitorOriginalGuidance(el);
+ const nop=el.dataset.guidanceId;if(!nop)return;if(guidanceTimers[nop]){clearTimeout(guidanceTimers[nop]);delete guidanceTimers[nop];}
+ const states=()=>document.querySelectorAll('[data-guidance-state="'+CSS.escape(nop)+'"]'),say=text=>states().forEach(x=>x.textContent=text);
+ if(!monitorAuthCurrent()){say('Belum terhubung ke Google Sheets');return;}
+ if(saktiMonitor.busy){say('Belum tersimpan; tunggu sinkronisasi lalu ubah kembali');return;}
+ const records=[...saktiMonitor.records.values()].filter(r=>r.nop===nop&&r.year===monitorActiveYear(nop)),first=records.find(r=>r.stage==='Himbauan 1')||records[0];
+ if(!first){if(el.dataset.guidanceSource!=='Monitoring Penyampaian Himbauan'){await monitorOriginalGuidance(el);say('Tersimpan pada perangkat; NOP belum ada di Sheets');}else say('NOP belum ada di Google Sheets');return;}
+ const tr=el.closest('tr'),guidance=tr?.querySelector('.guidance-input')?.value||'',followup=tr?.querySelector('.guidance-status')?.value||'Belum Ditindaklanjuti';
+ const revisions=saktiMonitor.guidanceBases.get(nop)||Object.fromEntries(records.map(r=>[r.key,r.revision]));saktiMonitor.busy=true;say('Menyimpan ke Google Sheets…');
+ try{const result=await monitorRpc('saveGuidance',{key:first.key,revision:revisions[first.key],revisions,patch:{guidance,followup}});saktiMonitor.guidanceBases.delete(nop);monitorApply(result.rows);guidanceSyncAcrossTables(nop);try{await deliveryPersist();}catch(e){monitorStatus('Arahan tersimpan di Google Sheets; salinan perangkat belum tersimpan.',true);}}
+ catch(e){say('Belum tersimpan: '+e.message);monitorStatus(e.message,true);}finally{saktiMonitor.busy=false;}
+};
+const monitorOriginalImport=importDeliveryExcel;
+importDeliveryExcel=async function(...args){if(monitorAuthCurrent()){saktiMonitor.paused=true;monitorStatus('Impor lokal · sinkronisasi otomatis dijeda. Klik Segarkan Data untuk memakai data Google Sheets kembali.');}return monitorOriginalImport.apply(this,args);};
+const monitorOriginalMatrix=importMatrixRender;
+importMatrixRender=function(...args){const result=monitorOriginalMatrix.apply(this,args),body=document.getElementById('importSourceRows');if(body){const row=document.createElement('tr');row.innerHTML='<td><strong>Monitoring Penyampaian Himbauan</strong></td><td>Google Sheets Monitoring Himbauan</td><td>'+saktiMonitor.records.size.toLocaleString('id-ID')+' catatan</td><td>'+(saktiMonitor.at?new Date(saktiMonitor.at).toLocaleString('id-ID',{timeZone:'Asia/Jakarta'}):'—')+'</td><td data-monitor-status>'+(monitorAuthCurrent()?'Terhubung':'Belum terhubung')+'</td><td><div class="import-row-actions"><button class="btn" onclick="monitorOpenSettings()">Koneksi</button><button class="btn" onclick="monitorSync(true)">Segarkan</button><button class="btn" onclick="exportDeliveryExcel()">↓ Export</button></div></td>';body.append(row);}return result;};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',monitorInit);else monitorInit();
+
 </script>
 </body>
 </html>
