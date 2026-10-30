@@ -12057,12 +12057,12 @@ body input[type="number"]::-webkit-inner-spin-button,body input[type="number"]::
     <div class="login-form">
       <div id="authSignin" class="auth-signin">
         <div class="sub">SIGN IN</div>
-        <div class="sub">Gunakan NIK pegawai dan password.</div>
-        <div class="field"><label>NIK Pegawai</label><input id="loginNik" value="" autocomplete="off" placeholder="Masukkan NIK"></div>
+        <div class="sub">Gunakan NIP pegawai dan password.</div>
+        <div class="field"><label>NIP Pegawai</label><input id="loginNik" value="" autocomplete="off" placeholder="Masukkan NIP"></div>
         <div class="field">
           <label>Password</label>
           <div class="password-wrap">
-            <input id="loginPassword" type="password" value="" autocomplete="off" placeholder="Masukkan password">
+            <input id="loginPassword" type="password" value="" autocomplete="off" placeholder="Masukkan password" minlength="4">
             <button type="button" class="password-toggle" onclick="togglePassword('loginPassword',this)" aria-label="Tampilkan password"></button>
           </div>
         </div>
@@ -13153,14 +13153,14 @@ document.addEventListener('DOMContentLoaded',()=>{pbbSyncAdminTargets();});
       <div class="mini-note">Permintaan dari halaman Sign In akan muncul di sini dan tersimpan pada browser ini.</div>
       <div class="tablewrap admin-reset-wrap">
         <table class="table admin-user-table">
-          <thead><tr><th>Waktu</th><th>NIK</th><th>Nama</th><th>Email</th><th>Status</th><th>Tindakan</th></tr></thead>
+          <thead><tr><th>Waktu</th><th>NIP</th><th>Nama</th><th>Email</th><th>Status</th><th>Tindakan</th></tr></thead>
           <tbody id="passwordResetRequestBody"></tbody>
         </table>
       </div>
     </div>
     <div class="card admin-reset-info">
       <div class="sectiontitle">Alur Reset</div>
-      <div class="item"><strong>1. Permintaan</strong>Pengguna mengirim NIK atau email terdaftar dari Sign In.</div>
+      <div class="item"><strong>1. Permintaan</strong>Pengguna mengirim NIP atau email terdaftar dari Sign In.</div>
       <div class="item"><strong>2. Verifikasi Admin</strong>Admin memastikan akun yang meminta reset.</div>
       <div class="item"><strong>3. Reset Password</strong>Admin menetapkan password baru atau password sementara.</div>
       <div class="item"><strong>4. Login Kembali</strong>Password baru langsung berlaku pada simulasi akun lokal.</div>
@@ -13172,7 +13172,7 @@ document.addEventListener('DOMContentLoaded',()=>{pbbSyncAdminTargets();});
     <div class="mini-note">Kolom Tindakan menyediakan reset password dan hapus pengguna. Penghapusan berlaku pada browser ini; akun yang sedang digunakan tidak dapat dihapus.</div>
     <div class="tablewrap">
       <table class="table admin-user-table">
-        <thead><tr><th>Foto</th><th>NIK</th><th>Nama</th><th>Email</th><th>Role</th><th>Wilayah</th><th>WhatsApp</th><th>Status</th><th>Tindakan</th></tr></thead>
+        <thead><tr><th>Foto</th><th>NIP</th><th>Nama</th><th>Email</th><th>Role</th><th>Wilayah</th><th>WhatsApp</th><th>Status</th><th>Tindakan</th></tr></thead>
         <tbody id="adminUserTableBody"></tbody>
       </table>
     </div>
@@ -13609,11 +13609,11 @@ function initTheme(){
 function doLogin(){
   const nikInput=document.getElementById('loginNik'),passwordInput=document.getElementById('loginPassword');
   const nik=(nikInput?.value||'').trim(),password=passwordInput?.value||'';
-  if(!nik&&!password){alert('Masukkan NIK Pegawai dan password.');nikInput?.focus();return;}
-  if(!nik){alert('Masukkan NIK Pegawai.');nikInput?.focus();return;}
+  if(!nik&&!password){alert('Masukkan NIP Pegawai dan password.');nikInput?.focus();return;}
+  if(!nik){alert('Masukkan NIP Pegawai.');nikInput?.focus();return;}
   if(!password){alert('Masukkan password.');passwordInput?.focus();return;}
   const user=getLoginUser();
-  if(!user){alert('Pengguna tidak terdaftar. Periksa kembali NIK Pegawai Anda.');nikInput?.focus();return;}
+  if(!user){alert('Pengguna tidak terdaftar. Periksa kembali NIP Pegawai Anda.');nikInput?.focus();return;}
   if(String(user.password||'')!==String(password)){
     alert('Password salah. Silakan coba lagi.');passwordInput?.focus();passwordInput?.select();return;
   }
@@ -13779,12 +13779,12 @@ function submitPasswordResetRequest(){
   const msg=document.getElementById('forgotMessage');
   const identity=(input?.value||'').trim();
   if(!identity){
-    if(msg){msg.textContent='Masukkan NIK Pegawai atau email terdaftar.';msg.className='forgot-message error'}
+    if(msg){msg.textContent='Masukkan NIP Pegawai atau email terdaftar.';msg.className='forgot-message error'}
     return;
   }
   const user=getAuthUserByIdentity(identity);
   if(!user){
-    if(msg){msg.textContent='NIK atau email tidak ditemukan pada simulasi akun terdaftar.';msg.className='forgot-message error'}
+    if(msg){msg.textContent='NIP atau email tidak ditemukan pada simulasi akun terdaftar.';msg.className='forgot-message error'}
     return;
   }
   const requests=loadResetRequests();
@@ -13848,7 +13848,7 @@ function openAdminResetModal(nik,requestId=''){
   adminResetNik=nik;
   adminResetRequestId=requestId||null;
   const meta=document.getElementById('adminResetUserMeta');
-  if(meta)meta.textContent=`${u.name||'—'} · NIK ${nik} · ${u.email||'email belum tersedia'}`;
+  if(meta)meta.textContent=`${u.name||'—'} · NIP ${nik} · ${u.email||'email belum tersedia'}`;
   const p1=document.getElementById('adminNewPassword'),p2=document.getElementById('adminConfirmPassword'),msg=document.getElementById('adminResetMessage');
   if(p1)p1.value='';if(p2)p2.value='';
   if(msg){msg.textContent='';msg.className='forgot-message'}
@@ -13876,8 +13876,8 @@ function saveAdminPasswordReset(){
     if(msg){msg.textContent='Akun reset belum dipilih.';msg.className='forgot-message error'}
     return;
   }
-  if(!p1){
-    if(msg){msg.textContent='Masukkan password baru.';msg.className='forgot-message error'}
+  if(p1.length<4){
+    if(msg){msg.textContent='Password minimal 4 karakter.';msg.className='forgot-message error'}
     return;
   }
   if(p1!==p2){
@@ -17796,13 +17796,13 @@ document.addEventListener('DOMContentLoaded',()=>renderBphtb());
       <div>
         <div class="sub">RESET PASSWORD</div>
         <h2 id="forgotPasswordTitle">Lupa Password</h2>
-        <div class="sub">Masukkan NIK Pegawai atau Email terdaftar.</div>
+        <div class="sub">Masukkan NIP Pegawai atau Email terdaftar.</div>
       </div>
       <button class="auth-popup-close" type="button" aria-label="Tutup" onclick="closeForgotPasswordModal()">×</button>
     </div>
     <div class="field">
-      <label>NIK Pegawai / Email</label>
-      <input id="forgotIdentity" autocomplete="username" placeholder="Masukkan NIK atau email terdaftar">
+      <label>NIP Pegawai / Email</label>
+      <input id="forgotIdentity" autocomplete="username" placeholder="Masukkan NIP atau email terdaftar">
     </div>
     <button class="btn primary" style="width:100%" type="button" onclick="submitPasswordResetRequest()">Kirim Permintaan Reset</button>
     <div id="forgotMessage" class="forgot-message" aria-live="polite"></div>
@@ -17822,7 +17822,7 @@ document.addEventListener('DOMContentLoaded',()=>renderBphtb());
     </div>
 
     <div class="create-grid auth-popup-create-grid">
-      <div class="field full"><label>NIK Pegawai</label><input id="createNik" placeholder="Masukkan NIK"></div>
+      <div class="field full"><label>NIP Pegawai</label><input id="createNik" placeholder="Masukkan NIP"></div>
       <div class="field full"><label>Nama Lengkap</label><input id="createName" placeholder="Masukkan nama lengkap"></div>
       <div class="field"><label>Email</label><input id="createEmail" type="email" placeholder="Masukkan email"></div>
       <div class="field"><label>Nomor WhatsApp</label><input id="createPhone" placeholder="08xxxxxxxxxx"></div>
@@ -17846,8 +17846,8 @@ document.addEventListener('DOMContentLoaded',()=>renderBphtb());
         </div>
       </div>
 
-      <div class="field"><label>Password</label><div class="password-wrap"><input id="createPassword" type="password" placeholder="Buat password"><button type="button" class="password-toggle" onclick="togglePassword('createPassword',this)" aria-label="Tampilkan password"></button></div></div>
-      <div class="field"><label>Konfirmasi Password</label><div class="password-wrap"><input id="confirmPassword" type="password" placeholder="Ulangi password"><button type="button" class="password-toggle" onclick="togglePassword('confirmPassword',this)" aria-label="Tampilkan password"></button></div></div>
+      <div class="field"><label>Password</label><div class="password-wrap"><input id="createPassword" type="password" placeholder="Minimal 4 karakter" minlength="4"><button type="button" class="password-toggle" onclick="togglePassword('createPassword',this)" aria-label="Tampilkan password"></button></div></div>
+      <div class="field"><label>Konfirmasi Password</label><div class="password-wrap"><input id="confirmPassword" type="password" placeholder="Ulangi password" minlength="4"><button type="button" class="password-toggle" onclick="togglePassword('confirmPassword',this)" aria-label="Tampilkan password"></button></div></div>
     </div>
 
     <div class="create-note">Akun baru menunggu verifikasi Administrator sebelum role dan wilayah akses diaktifkan.</div>
@@ -17901,14 +17901,14 @@ document.addEventListener('DOMContentLoaded',()=>renderBphtb());
     <div class="field">
       <label>Password Baru</label>
       <div class="password-wrap">
-        <input id="adminNewPassword" type="password" placeholder="Masukkan password baru">
+        <input id="adminNewPassword" type="password" placeholder="Masukkan password baru" minlength="4">
         <button type="button" class="password-toggle" onclick="togglePassword('adminNewPassword',this)" aria-label="Tampilkan password"></button>
       </div>
     </div>
     <div class="field">
       <label>Konfirmasi Password</label>
       <div class="password-wrap">
-        <input id="adminConfirmPassword" type="password" placeholder="Ulangi password baru">
+        <input id="adminConfirmPassword" type="password" placeholder="Ulangi password baru" minlength="4">
         <button type="button" class="password-toggle" onclick="togglePassword('adminConfirmPassword',this)" aria-label="Tampilkan password"></button>
       </div>
     </div>
@@ -19414,7 +19414,7 @@ function releaseMount(){const page=document.getElementById('import');if(page){co
  document.querySelectorAll('input[type=file]').forEach(e=>{e.setAttribute('aria-label',e.getAttribute('aria-label')||'Pilih file untuk '+(e.id||'impor'));});
  document.querySelectorAll('.page input,.page select,.page textarea').forEach(e=>{if(!e.hasAttribute('aria-label')&&!e.labels?.length)e.setAttribute('aria-label',e.placeholder||e.id||'Filter data');});
  const targets=document.getElementById('targets');if(targets){const y=document.createElement('div');y.className='card release-data-controls';y.innerHTML='<div class="sectiontitle">Tahun Kerja PBB-P2 / Overview</div><div class="release-toolbar"><label>Tahun<input id="releaseWorkingYearInput" type="number" min="2024" max="2100" value="2026"></label><button class="btn" onclick="releaseSetYear()">Terapkan Tahun Kerja</button></div>';targets.append(y);}
- const remember=document.querySelector('.login-remember');if(remember){remember.lastChild.textContent=' Ingat NIK';const input=document.getElementById('loginNik'),checkbox=remember.querySelector('input');const saved=localStorage.getItem('organization-login-nik');if(saved){input.value=saved;checkbox.checked=true;}input.addEventListener('change',()=>{if(checkbox.checked)localStorage.setItem('organization-login-nik',input.value.trim());});checkbox.addEventListener('change',()=>checkbox.checked?localStorage.setItem('organization-login-nik',input.value.trim()):localStorage.removeItem('organization-login-nik'));}
+ const remember=document.querySelector('.login-remember');if(remember){remember.lastChild.textContent=' Ingat NIP';const input=document.getElementById('loginNik'),checkbox=remember.querySelector('input');const saved=localStorage.getItem('organization-login-nik');if(saved){input.value=saved;checkbox.checked=true;}input.addEventListener('change',()=>{if(checkbox.checked)localStorage.setItem('organization-login-nik',input.value.trim());});checkbox.addEventListener('change',()=>checkbox.checked?localStorage.setItem('organization-login-nik',input.value.trim()):localStorage.removeItem('organization-login-nik'));}
  generateTemporaryPassword=function(){const bytes=crypto.getRandomValues(new Uint8Array(16)),password='Tmp-'+Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');for(const id of ['adminNewPassword','adminConfirmPassword']){const e=document.getElementById(id);e.type='text';e.value=password;}document.getElementById('adminResetMessage').textContent='Password sementara dibuat; sampaikan melalui kanal organisasi yang sesuai.';};
 }
 let releaseContrastTimer;
@@ -19507,9 +19507,9 @@ async function releaseInitProtected(){
 }
 async function releaseRenderUsers(){
  if(!releasePrivate||releaseUser?.role!=='admin')return;try{const r=await releaseAPI('/admin/users');releaseUsers=r.users;releaseRequests=r.requests;const page=document.getElementById('users');let box=document.getElementById('releaseServerUsers');if(!box){box=document.createElement('div');box.id='releaseServerUsers';box.className='card';page.append(box);page.querySelectorAll(':scope > :not(#releaseServerUsers):not(.headerrow)').forEach(e=>e.hidden=true);}box.replaceChildren();
- const title=document.createElement('h2');title.textContent='Pengguna & Pengajuan Akun';box.append(title);const table=document.createElement('table');table.className='table';const head=table.createTHead().insertRow();['NIK','Nama','Role','Wilayah','Tindakan'].forEach(t=>{const e=document.createElement('th');e.textContent=t;head.append(e);});const body=table.createTBody();for(const u of r.users){const tr=body.insertRow();[u.nik,u.name,u.role,u.scope].forEach(v=>tr.insertCell().textContent=v);const b=document.createElement('button');b.className='btn';b.textContent='Reset Password';b.onclick=()=>{adminResetNik=u.nik;document.getElementById('adminResetUserMeta').textContent=u.name+' · '+u.nik;document.getElementById('adminResetModal').classList.add('open');document.getElementById('adminResetModal').setAttribute('aria-hidden','false');};const cell=tr.insertCell();cell.append(b);if(u.nik!==releaseUser.nik){const toggle=document.createElement('button');toggle.className='btn';toggle.textContent=u.active?'Nonaktifkan':'Aktifkan';toggle.onclick=async()=>{try{await releaseAPI('/admin/users',{method:'PATCH',body:JSON.stringify({nik:u.nik,active:!u.active})});releaseRenderUsers();}catch(e){alert(e.message);}};cell.append(toggle);}}const wrap=document.createElement('div');wrap.className='tablewrap';wrap.append(table);box.append(wrap);
+ const title=document.createElement('h2');title.textContent='Pengguna & Pengajuan Akun';box.append(title);const table=document.createElement('table');table.className='table';const head=table.createTHead().insertRow();['NIP','Nama','Role','Wilayah','Tindakan'].forEach(t=>{const e=document.createElement('th');e.textContent=t;head.append(e);});const body=table.createTBody();for(const u of r.users){const tr=body.insertRow();[u.nik,u.name,u.role,u.scope].forEach(v=>tr.insertCell().textContent=v);const b=document.createElement('button');b.className='btn';b.textContent='Reset Password';b.onclick=()=>{adminResetNik=u.nik;document.getElementById('adminResetUserMeta').textContent=u.name+' · '+u.nik;document.getElementById('adminResetModal').classList.add('open');document.getElementById('adminResetModal').setAttribute('aria-hidden','false');};const cell=tr.insertCell();cell.append(b);if(u.nik!==releaseUser.nik){const toggle=document.createElement('button');toggle.className='btn';toggle.textContent=u.active?'Nonaktifkan':'Aktifkan';toggle.onclick=async()=>{try{await releaseAPI('/admin/users',{method:'PATCH',body:JSON.stringify({nik:u.nik,active:!u.active})});releaseRenderUsers();}catch(e){alert(e.message);}};cell.append(toggle);}}const wrap=document.createElement('div');wrap.className='tablewrap';wrap.append(table);box.append(wrap);
  for(const q of r.requests){const div=document.createElement('div');div.className='release-status';div.textContent=q.kind+' · '+q.identity+' · '+q.created;if(q.kind==='register'){const role=document.createElement('select');['viewer','editor'].forEach(t=>role.add(new Option(t,t)));const scope=document.createElement('select');['CILANDAK',...PBJT_KEL].forEach(t=>scope.add(new Option(t,t)));const b=document.createElement('button');b.className='btn';b.textContent='Setujui';b.onclick=async()=>{try{await releaseAPI('/admin/approve',{method:'POST',body:JSON.stringify({id:q.id,role:role.value,scope:scope.value})});releaseRenderUsers();}catch(e){alert(e.message);}};div.append(role,scope,b);}box.append(div);}
- const form=document.createElement('form');form.id='releaseAddUser';form.className='formgrid';form.innerHTML='<h3>Tambah Pengguna</h3><label>NIK<input name="nik" required pattern="[0-9]{18}"></label><label>Nama<input name="name" required></label><label>Email<input name="email" type="email"></label><label>Password awal<input name="password" type="password" required minlength="12"></label><label>Role<select name="role"><option value="viewer">Pembaca</option><option value="editor">Petugas</option><option value="admin">Administrator</option></select></label><label>Wilayah<select name="scope"><option>CILANDAK</option>'+PBJT_KEL.map(k=>'<option>'+k+'</option>').join('')+'</select></label><button class="btn primary" type="submit">Buat Akun</button>';form.onsubmit=async e=>{e.preventDefault();try{await releaseAPI('/admin/users',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});releaseRenderUsers();}catch(err){alert(err.message);}};box.append(form);
+ const form=document.createElement('form');form.id='releaseAddUser';form.className='formgrid';form.innerHTML='<h3>Tambah Pengguna</h3><label>NIP<input name="nik" required pattern="[0-9]{18}"></label><label>Nama<input name="name" required></label><label>Email<input name="email" type="email"></label><label>Password awal<input name="password" type="password" required minlength="4"></label><label>Role<select name="role"><option value="viewer">Pembaca</option><option value="editor">Petugas</option><option value="admin">Administrator</option></select></label><label>Wilayah<select name="scope"><option>CILANDAK</option>'+PBJT_KEL.map(k=>'<option>'+k+'</option>').join('')+'</select></label><button class="btn primary" type="submit">Buat Akun</button>';form.onsubmit=async e=>{e.preventDefault();try{await releaseAPI('/admin/users',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(form)))});releaseRenderUsers();}catch(err){alert(err.message);}};box.append(form);
  const log=document.createElement('button');log.className='btn';log.textContent='Ekspor Riwayat Perubahan';log.onclick=async()=>{try{const a=await releaseAPI('/admin/audit');releaseDownload(new Blob([JSON.stringify(a.events,null,2)],{type:'application/json'}),'Riwayat_Perubahan.json');}catch(e){alert(e.message);}};box.append(log);releaseScheduleContrast();}catch(e){releaseNotice(e.message,true);}
 }
 
@@ -19597,7 +19597,7 @@ function removeLocalUser(nik){
   if(!user){alert('Pengguna tidak ditemukan.');return;}
   if(actor.nik===nik){alert('Akun yang sedang digunakan tidak dapat dihapus.');return;}
   if(adminLocalRole(user)&&Object.values(users).filter(adminLocalRole).length<=1){alert('Administrator terakhir tidak dapat dihapus.');return;}
-  if(!confirm('Hapus pengguna '+user.name+' (NIK '+nik+')? Akses akun pada browser ini akan dihapus. Catatan pekerjaan tetap dipertahankan.'))return;
+  if(!confirm('Hapus pengguna '+user.name+' (NIP '+nik+')? Akses akun pada browser ini akan dihapus. Catatan pekerjaan tetap dipertahankan.'))return;
   try{
     users[nik]={nik,deleted:true,status:'Dihapus',deletedAt:new Date().toISOString(),deletedBy:actor.nik};
     saveAuthUsers(users);renderAdminUsers();renderPasswordResetRequests();
@@ -20405,13 +20405,13 @@ document.getElementById('priorityReasonOtherDialog').addEventListener('click',ev
  <div class="rb-dialog-head"><h2 id="rbUserDialogTitle">Pengaturan Pengguna</h2><button type="button" class="btn" aria-label="Tutup" onclick="document.getElementById('rbUserDialog').close()">×</button></div>
  <form id="rbUserForm" onsubmit="rbSaveUser(event)">
  <div class="rb-user-grid">
-  <label>NIK Pegawai<input id="rbUserNik" required pattern="[0-9]{18}" inputmode="numeric" maxlength="18" autocomplete="off"></label>
+  <label>NIP Pegawai<input id="rbUserNik" required pattern="[0-9]{18}" inputmode="numeric" maxlength="18" autocomplete="off"></label>
   <label>Nama<input id="rbUserName" required maxlength="120"></label>
   <label>Email<input id="rbUserEmail" type="email"></label><label>Nomor Telepon<input id="rbUserPhone" type="tel"></label>
   <label>Role Pengguna<select id="rbUserRole" required onchange="rbUserRoleFields()"></select></label>
   <label>Kelurahan<select id="rbUserKel"><option>Lebak Bulus</option><option>Pondok Labu</option><option>Cilandak Barat</option><option>Gandaria Selatan</option><option>Cipete Selatan</option></select></label>
   <label>Status Akun<select id="rbUserStatus"><option>Aktif</option><option>Menunggu Persetujuan</option><option>Nonaktif</option></select></label>
-  <label id="rbUserPasswordField">Password Awal<input id="rbUserPassword" type="password" minlength="12" autocomplete="new-password"></label>
+  <label id="rbUserPasswordField">Password Awal<input id="rbUserPassword" type="password" minlength="4" autocomplete="new-password"></label>
  </div><p id="rbUserScopeHelp"></p><p id="rbUserError" role="alert"></p><div class="rb-actions"><button type="button" class="btn" onclick="document.getElementById('rbUserDialog').close()">Batal</button><button type="submit" class="btn primary">Simpan Pengguna</button></div>
  </form>
 </dialog>
@@ -20496,8 +20496,9 @@ function rbSaveUser(event){
  event.preventDefault();if(!rbRequireFull())return;const form=event.target;if(!form.reportValidity())return;
  const value=id=>document.getElementById(id).value.trim(),users=loadAuthUsers(),nik=rbEditingNik||value('rbUserNik');
  try{
-  if(!/^\d{18}$/.test(nik))throw Error('NIK pegawai harus terdiri dari 18 digit.');
-  if(!rbEditingNik&&users[nik])throw Error('NIK sudah terdaftar.');
+  if(!/^\d{18}$/.test(nik))throw Error('NIP pegawai harus terdiri dari 18 digit.');
+  if(!rbEditingNik&&users[nik])throw Error('NIP sudah terdaftar.');
+  if(!rbEditingNik&&document.getElementById('rbUserPassword').value.length<4)throw Error('Password minimal 4 karakter.');
   if(nik===RB_MASTER_NIK&&rbRole()!=='master')throw Error('Akun Master dilindungi.');
   const role=nik===RB_MASTER_NIK?'master':value('rbUserRole'),kel=role==='kelurahan'?value('rbUserKel'):'';
   if(!RB_ROLES[role]||(role==='master'&&nik!==RB_MASTER_NIK))throw Error('Role tidak valid.');
@@ -20943,6 +20944,13 @@ function importMatrixExport(key){if(!rbRequireFull())return;try{const wb=importM
  const prior=rbRefresh;rbRefresh=function(...args){const result=prior.apply(this,args);importMatrixRender();return result;};
  importMatrixRender();document.addEventListener('DOMContentLoaded',importMatrixRender);
 })();
+</script>
+<script id="nip-password-v133">
+function dashboardPasswordLengthOK(value){return typeof value==='string'&&value.length>=4;}
+for(const [name,id] of [['doLogin','loginPassword'],['submitCreateAccount','createPassword'],['saveAdminPasswordReset','adminNewPassword']]){
+ const original=window[name];if(typeof original!=='function')continue;
+ window[name]=function(...args){const input=document.getElementById(id);if(!dashboardPasswordLengthOK(input?.value||'')){alert('Password minimal 4 karakter.');input?.focus();return;}return original.apply(this,args);};
+}
 </script>
 </body>
 </html>

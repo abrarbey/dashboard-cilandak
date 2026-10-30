@@ -1,6 +1,6 @@
 # Dashboard Kolaborasi — GitHub Pages
 
-Paket statis dari Dashboard Kolaborasi v7.84.75.132 (Matriks Import dan Export).
+Paket statis dari Dashboard Kolaborasi v7.84.75.133 (Matriks Import dan Export).
 
 ## Isi paket
 
@@ -43,3 +43,7 @@ HTML ini memuat data wajib pajak di dalam kode sumbernya. Orang yang dapat menga
 Paket ini mempertahankan mode aplikasi yang ada (`internal`, tanpa backend). Paket tidak menambahkan autentikasi server, sinkronisasi antarperangkat, penyimpanan Google Drive, atau database bersama. Pastikan lokasi publikasi dan pihak yang dapat mengaksesnya sesuai dengan penggunaan data Anda.
 
 Paket ini disiapkan untuk unggah manual. Situs belum dipublikasikan oleh pembuat paket.
+
+## Perubahan versi 133
+
+Label identitas pegawai menggunakan NIP. Password baru dan reset password minimal 4 karakter. Identitas akun dan data yang sudah tersimpan tetap kompatibel.
