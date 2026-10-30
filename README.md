@@ -1,6 +1,6 @@
 # Dashboard Kolaborasi — GitHub Pages
 
-Paket statis dari Dashboard Kolaborasi v7.84.75.133 (Matriks Import dan Export).
+Paket statis dari Dashboard Kolaborasi (Matriks Import dan Export).
 
 ## Isi paket
 
