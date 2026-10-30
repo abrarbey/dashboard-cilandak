@@ -7554,9 +7554,9 @@ function dashboardSyncBphtbOverview(){
 const dashboardMatrixState={priority:{page:1,size:100,sort:null},delivery:{page:1,size:100,sort:null}};
 const dashboardPrioritySelection=new Set();
 function dashboardMatrixCells(kind,r){
-  const g=guidanceGet(r.nop),note=priorityOpsState[r.nop]?.catatan??r.ket;
-  const end=[g.arahan||'',g.status||'Belum Ditindaklanjuti',guidanceFmtDate(g.updatedAt)+(g.updatedBy?' '+g.updatedBy:'')];
-  if(kind==='priority')return ['',r.nop,r.wp,r.kel,r.jenisTagihan,r.jpbLabel,r.alamatOp,fmtRpShort(r.grandTotal),String(r.jmlTahun),r.payAmount>0?'Sudah Membayar':'Belum Membayar',r.payAmount>0?fmtRpShort(r.payAmount):'—',priorityFmtDate(r.payDate),fmtRpShort(r.sourceRealisasi),String(r.sourceTahunBayar),'Himbauan 1 · '+r.ops.himbauan,r.ops.delivery,r.keterangan,r.keteranganLain,note,r.maps?'Buka Map':'Map belum tersedia',...end];
+  const g=guidanceGet(r.nop),note=kind==='priority'?r.monitoringNote:(r.ops.catatan||'');
+  const end=[g.arahan||'',g.status||'Belum Ditindaklanjuti',guidanceFmtDate(r.ops.updatedAt)+(r.ops.updatedBy?' '+r.ops.updatedBy:'')];
+  if(kind==='priority')return ['',r.nop,r.wp,r.kel,r.jenisTagihan,r.jpbLabel,r.alamatOp,fmtRpShort(r.grandTotal),String(r.jmlTahun),r.payAmount>0?'Sudah Membayar':'Belum Membayar',r.payAmount>0?fmtRpShort(r.payAmount):'—',priorityFmtDate(r.payDate),fmtRpShort(r.sourceRealisasi),String(r.sourceTahunBayar),r.monitoringStage,r.ops.delivery,r.keterangan,r.keteranganLain,note,r.maps?'Buka Map':'Map belum tersedia',...end];
   return [r.nop,r.kel,r.jpbLabel,r.wp,r.letterType||'Himbauan 1',r.ops.delivery,r.keterangan,r.keteranganLain,note,r.maps?'Buka Map':'Map belum tersedia',...end,dashboardDateLabel(r.ops.deliveryDate),r.ops.receiver||'',r.ops.officer||'',r.jenisTagihan];
 }
 function dashboardMatrixFilteredRows(kind){
@@ -11588,6 +11588,7 @@ body input[type="number"]::-webkit-inner-spin-button,body input[type="number"]::
             <option>SENGKETA</option><option>SUBJEK TIDAK DITEMUKAN</option><option>TANAH KOSONG</option>
           </select></div>
           <div class="field" id="deliveryReasonOtherField" style="display:none"><label for="deliveryReasonOther">Alasan lainnya</label><input id="deliveryReasonOther" type="text" maxlength="500" placeholder="Tuliskan alasan lainnya"></div>
+          <div class="field" style="grid-column:1/-1"><label for="deliveryNote">Catatan</label><textarea id="deliveryNote" rows="2" maxlength="2000" placeholder="Catatan untuk tahap himbauan ini"></textarea></div>
         </div><div id="deliveryFormActions" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px"><button class="btn primary" onclick="saveDeliveryLocal()">Simpan Update</button></div></div>
 
       </div>
@@ -13385,9 +13386,19 @@ try{priorityOpsState=JSON.parse(localStorage.getItem(PRIORITY_OPS_KEY)||'{}')||{
 function prioritySaveOps(){
   try{localStorage.setItem(PRIORITY_OPS_KEY,JSON.stringify(priorityOpsState))}catch(e){}
 }
+// Master identity and debt data never supply monitoring status or notes.
+function priorityMasterOnly(source){
+ const clean={...source};for(const key of ['himbauan1','deliverySource','keterangan','keteranganLain','ket','catatan','reasonCategory','reasonOther','delivery','himbauan','updatedAt','updatedBy'])delete clean[key];return clean;
+}
+function priorityMasterWorkbook(){
+ const headers=['NOP','Wajib Pajak','Kelurahan','Piutang / Tahun Berjalan','Nilai Piutang','Nilai Tahun Berjalan','Tahun Acuan','JPB','Alamat Objek','Alamat WP','Nilai Prioritas','Jumlah Tahun','Google Map','Pokok Bayar','Pokok Bayar Piutang','Pokok Bayar Tahun Berjalan','Tanggal Pembayaran','Arahan','Status Tindak Lanjut'];
+ const rows=priorityRowsEnriched().map(r=>{const g=guidanceGet(r.nop);return [String(r.nop),r.wp,r.kel,r.jenisTagihan,r.nilaiPiutang,r.nilaiTahunBerjalan,r.tahunAcuan,r.jpbLabel,r.alamatOp,r.alamatWp,r.grandTotal,r.jmlTahun,r.maps,r.payAmount,r.payPiutang,r.payTahunBerjalan,r.payDate||'',g.arahan||'',g.status||'Belum Ditindaklanjuti'];});
+ return excelCreateWorkbook('Data Objek Prioritas',headers,rows);
+}
+
 function priorityDefaultOps(nop,row=null){
-  const saved=priorityOpsState[nop]||{};
-  return {...saved,delivery:saved.delivery||(row?.deliverySource||'Belum Diupdate'),reason:saved.reason||'',himbauan:saved.himbauan||(row?.himbauan1||'Sudah Dikirim')};
+ const saved=priorityOpsState[nop]||{},stage=deliveryStageOps(nop,'Himbauan 1',row);
+ return {...saved,...stage,himbauan:monitoringStageExecuted(stage)?'Sudah Dikirim':'Belum Dikirim'};
 }
 function prioritySetOp(nop,key,value){
  const base=priorityActiveMaster().find(r=>String(r.nop)===String(nop))||null,cur=priorityDefaultOps(nop,base);
@@ -13426,8 +13437,29 @@ function prioritySelect(value,options,nop,key,cls=''){
 }
 function priorityRowsEnriched(){return priorityActiveMaster().map(row=>{
  const ops=priorityDefaultOps(row.nop,row),jpb=getSpptJpb(row.nop);
- return {...row,...pkPaymentFor(row),maps:Object.hasOwn(ops,'driveMap')?ops.driveMap:row.maps,keterangan:Object.hasOwn(ops,'reasonCategory')?ops.reasonCategory:row.keterangan,keteranganLain:Object.hasOwn(ops,'reasonCategory')?(ops.reasonCategory==='LAINNYA'?ops.reasonOther||'':''):row.keteranganLain,jpbLabel:jpb.label,ops};
+ return {...row,...pkPaymentFor(row),maps:Object.hasOwn(ops,'driveMap')?ops.driveMap:row.maps,keterangan:ops.reasonCategory||'',keteranganLain:ops.reasonOther||'',jpbLabel:jpb.label,ops};
 });}
+
+// Priority is a read-only projection of the latest executed monitoring stage.
+function monitoringStageExecuted(ops){
+ return !!ops&&(ops.executed===true||ops.himbauan==='Sudah Dikirim'||['Sudah Sampai','Belum Sampai'].includes(ops.delivery)||!!ops.deliveryDate);
+}
+function priorityMonitoringProjection(row){
+ const stages=priorityOpsState[row.nop]?.deliveryStages||{};
+ let stage='Himbauan 1';for(const name of ['Himbauan 3','Himbauan 2'])if(monitoringStageExecuted(stages[name])){stage=name;break;}
+ const ops=deliveryStageOps(row.nop,stage,row);
+ return {...row,monitoringStage:stages[stage]?stage:'Belum Ada Himbauan',monitoringNote:ops.catatan||'',monitoringUpdatedAt:ops.updatedAt||'',monitoringUpdatedBy:ops.updatedBy||'',ops:{...ops,himbauan:monitoringStageExecuted(ops)?'Sudah Dikirim':'Belum Dikirim'},keterangan:ops.reasonCategory||'',keteranganLain:ops.reasonOther||''};
+}
+function monitoringGuidanceCells(row,source){
+ const ordinary=guidanceCells(row.nop,source).replace(/<td class="guidance-updated"[\s\S]*?<\/td>\s*$/,'');
+ const ops=row.ops||{};
+ return ordinary+'<td class="monitoring-stage-updated" data-monitoring-readonly="true">'+guidanceEsc(guidanceFmtDate(ops.updatedAt))+(ops.updatedBy?'<br>'+guidanceEsc(ops.updatedBy):'')+'</td>';
+}
+function priorityStageWorkbook(rows){
+ const headers=['NOP','Wajib Pajak','Kelurahan','Piutang / Tahun Berjalan','Nilai Piutang','Nilai Tahun Berjalan','Tahun Acuan','Tahun Pajak','JPB','Alamat Objek','Alamat WP','Nilai Prioritas','Jumlah Tahun','Google Map','Status Pembayaran','Pokok Bayar','Pokok Bayar Piutang','Pokok Bayar Tahun Berjalan','Tanggal Pembayaran','Himbauan','Status Penyampaian','Keterangan','Keterangan Lainnya','Catatan','Arahan','Status Tindak Lanjut','Terakhir Diubah','Diubah Oleh'];
+ const data=rows.map(r=>{const g=guidanceGet(r.nop);return [r.nop,r.wp,r.kel,r.jenisTagihan,r.nilaiPiutang,r.nilaiTahunBerjalan,r.tahunAcuan,'',r.jpbLabel,r.alamatOp,r.alamatWp,r.grandTotal,r.jmlTahun,r.maps,r.payAmount>0?'Sudah Membayar':'Belum Membayar',r.payAmount,r.payPiutang,r.payTahunBerjalan,r.payDate||'',r.monitoringStage,r.ops.delivery,r.keterangan,r.keteranganLain,r.monitoringNote,g.arahan||'',g.status||'Belum Ditindaklanjuti',r.ops.updatedAt||'',r.ops.updatedBy||''];});
+ return excelCreateWorkbook('Data Objek Prioritas',headers,data,{textWideCols:[1,9,10,13,21,22,23,24]});
+}
 
 function priorityFilteredRows(){
   const kel=document.getElementById('priorityKelurahanFilter')?.value||'ALL';
@@ -13436,12 +13468,12 @@ function priorityFilteredRows(){
   const himbauan=document.getElementById('priorityHimbauanFilter')?.value||'ALL';
   const delivery=document.getElementById('priorityDeliveryFilter')?.value||'ALL';
   const q=(document.getElementById('prioritySearch')?.value||'').toLowerCase().trim();
-  return priorityRowsEnriched().filter(r=>{
+  return priorityRowsEnriched().map(priorityMonitoringProjection).filter(r=>{
     const paid=r.payAmount>0;
     return (kel==='ALL'||r.kel===kel) && (level==='ALL'||priorityInterval(r.grandTotal)===level) &&
       (payment==='ALL'||(payment==='PAID'?paid:!paid)) && (himbauan==='ALL'||r.ops.himbauan===himbauan) &&
       (delivery==='ALL'||r.ops.delivery===delivery) &&
-      (!q||[r.nop,r.wp,r.kel,r.jenisTagihan,r.jpbLabel,r.alamatOp,r.keterangan,r.keteranganLain,r.ket].join(' ').toLowerCase().includes(q));
+      (!q||[r.nop,r.wp,r.kel,r.jenisTagihan,r.jpbLabel,r.alamatOp,r.keterangan,r.keteranganLain,r.monitoringNote||''].join(' ').toLowerCase().includes(q));
   });
 }
 
@@ -13554,10 +13586,10 @@ function renderPriorityReal(){
       <td>${Number(r.jmlTahun||0).toLocaleString('id-ID')}</td><td>${payBadge}</td>
       <td class="priority-money">${paid?fmtRpShort(r.payAmount):'—'}</td><td>${priorityFmtDate(r.payDate)}</td>
       <td class="priority-money">${r.sourceRealisasi?fmtRpShort(r.sourceRealisasi):'—'}</td><td>${Number(r.sourceTahunBayar||0).toLocaleString('id-ID')}</td>
-      <td><span class="priority-h1-badge">Himbauan 1 · ${priorityEsc(r.ops.himbauan)}</span></td><td>${prioritySelect(r.ops.delivery,delOpts,r.nop,'delivery')}</td>
-      <td class="priority-source-cell">${priorityEsc(r.keterangan)||'—'}</td><td class="priority-source-cell">${priorityEsc(r.keteranganLain)||'—'}</td>
-      <td class="priority-source-cell">${priorityEsc(Object.prototype.hasOwnProperty.call(priorityOpsState[r.nop]||{},'catatan')?priorityOpsState[r.nop].catatan:r.ket)||'—'}</td><td>${mapCell}</td>
-      ${guidanceCells(r.nop,'Checklist Objek Prioritas')}
+      <td data-monitoring-readonly="true">${priorityEsc(r.monitoringStage)}</td><td data-monitoring-readonly="true">${priorityEsc(r.ops.delivery)}</td>
+      <td class="priority-source-cell" data-monitoring-readonly="true">${priorityEsc(r.keterangan)||'—'}</td><td class="priority-source-cell" data-monitoring-readonly="true">${priorityEsc(r.keteranganLain)||'—'}</td>
+      <td class="priority-source-cell" data-monitoring-readonly="true">${priorityEsc(r.monitoringNote)||'—'}</td><td>${mapCell}</td>
+      ${monitoringGuidanceCells(r,'Checklist Objek Prioritas')}
     </tr>`;
   }).join(''):'<tr><td colspan="23" style="text-align:center;color:var(--muted);padding:24px">Tidak ada data pada filter ini.</td></tr>';
   const selectAll=document.getElementById('prioritySelectAll');if(selectAll){selectAll.checked=rows.length>0&&rows.every(r=>dashboardPrioritySelection.has(String(r.nop)));selectAll.indeterminate=rows.some(r=>dashboardPrioritySelection.has(String(r.nop)))&&!selectAll.checked;}
@@ -13587,9 +13619,8 @@ document.addEventListener('DOMContentLoaded',()=>renderPriorityReal());
 
 // Each NOP keeps independent delivery details for Himbauan 1, 2 and 3.
 function deliveryStageOps(nop,stage,row){
- const saved=priorityOpsState[nop]||{};
- if(stage==='Himbauan 1'){const {deliveryStages,deliveryHistory,...base}=priorityDefaultOps(nop,row);return {...base,reasonCategory:Object.hasOwn(saved,'reasonCategory')?saved.reasonCategory:(row?.keterangan||''),reasonOther:Object.hasOwn(saved,'reasonCategory')?(saved.reasonOther||''):(row?.keteranganLain||'')};}
- return {delivery:'Belum Diupdate',reasonCategory:'',reasonOther:'',...(saved.deliveryStages?.[stage]||{})};
+ const record=priorityOpsState[nop]?.deliveryStages?.[stage]||{};
+ return {delivery:'Belum Diupdate',reasonCategory:'',reasonOther:'',catatan:'',updatedAt:'',updatedBy:'',deliveryDate:'',receiver:'',officer:'',...record};
 }
 function deliveryRowsEnriched(){
  return priorityRowsEnriched().flatMap(row=>['Himbauan 1','Himbauan 2','Himbauan 3'].filter(stage=>stage==='Himbauan 1'||priorityOpsState[row.nop]?.deliveryStages?.[stage]).map(stage=>{
@@ -13618,6 +13649,7 @@ function deliveryLoadStage(){
  document.getElementById('deliveryDate').value=ops.deliveryDate||priorityLetterTodayJakarta();
  document.getElementById('deliveryReceiver').value=ops.receiver||'Wajib Pajak';
  document.getElementById('deliveryOfficer').value=ops.officer||'';
+ document.getElementById('deliveryNote').value=ops.catatan||'';
  if(typeof window.deliveryReasonPickerSync==='function')window.deliveryReasonPickerSync();
 }
 
@@ -13628,7 +13660,7 @@ function renderDeliveryMonitor(){
  const esc=priorityEsc;
  body.innerHTML=dashboardMatrixPage('delivery',rows).map(r=>{
   const map=r.maps?`<a class="map-mini-btn" target="_blank" rel="noopener" href="${esc(prioritySafeMapUrl(r.maps))}">⌖ Buka Map</a>`:'<span class="badge priority-pending-badge">Map belum tersedia</span>';
-  return `<tr><td><button class="btn delivery-monitor-nopd-btn" style="padding:4px 7px;font-size:11px" onclick="prefillDelivery('${esc(r.nop)}','${r.letterType}')">${esc(r.nop)}</button></td><td>${esc(r.kel)}</td><td>${esc(r.jpbLabel)}</td><td>${esc(r.wp)}</td><td>${r.letterType}</td><td>${esc(r.ops.delivery)}</td><td>${esc(r.keterangan)||'—'}</td><td>${esc(r.keteranganLain)||'—'}</td><td>${esc(priorityOpsState[r.nop]?.catatan??r.ket)||'—'}</td><td>${map}</td>${guidanceCells(r.nop,'Monitoring Penyampaian Himbauan')}<td>${esc(dashboardDateLabel(r.ops.deliveryDate))||'—'}</td><td>${esc(r.ops.receiver)||'—'}</td><td>${esc(r.ops.officer)||'—'}</td><td>${pkKindCell(r)}</td></tr>`;
+  return `<tr><td><button class="btn delivery-monitor-nopd-btn" style="padding:4px 7px;font-size:11px" onclick="prefillDelivery('${esc(r.nop)}','${r.letterType}')">${esc(r.nop)}</button></td><td>${esc(r.kel)}</td><td>${esc(r.jpbLabel)}</td><td>${esc(r.wp)}</td><td>${r.letterType}</td><td>${esc(r.ops.delivery)}</td><td>${esc(r.keterangan)||'—'}</td><td>${esc(r.keteranganLain)||'—'}</td><td>${esc(r.ops.catatan)||'—'}</td><td>${map}</td>${monitoringGuidanceCells(r,'Monitoring Penyampaian Himbauan')}<td>${esc(dashboardDateLabel(r.ops.deliveryDate))||'—'}</td><td>${esc(r.ops.receiver)||'—'}</td><td>${esc(r.ops.officer)||'—'}</td><td>${pkKindCell(r)}</td></tr>`;
  }).join('')||'<tr><td colspan="18" style="text-align:center;padding:24px">Tidak ada data sesuai filter.</td></tr>';
  const delivered=rows.filter(r=>r.ops.delivery==='Sudah Sampai').length,failed=rows.filter(r=>r.ops.delivery==='Belum Sampai').length,pending=rows.filter(r=>r.ops.delivery==='Belum Diupdate').length;
  document.getElementById('deliveryMonitorSummary').innerHTML=`${rows.length.toLocaleString('id-ID')} catatan himbauan · <strong>${delivered} sampai</strong> · <strong>${failed} tidak sampai</strong> · <strong>${pending} belum diupdate</strong>`;
@@ -13659,7 +13691,7 @@ async function saveDeliveryLocal(){
  const raw=get('deliveryStatus'),stage=get('deliveryLetterType'),before=structuredClone(priorityOpsState);
  const button=document.querySelector('#delivery button[onclick="saveDeliveryLocal()"]');if(button?.disabled)return;if(button)button.disabled=true;
  try{
-  deliveryWriteStage(nop,stage,{delivery:raw==='Sampai'?'Sudah Sampai':raw==='Tidak Sampai'?'Belum Sampai':'Belum Diupdate',reasonCategory:category,reasonOther:category==='LAINNYA'?other:'',deliveryDate:date,receiver:get('deliveryReceiver'),officer:get('deliveryOfficer'),updatedAt:new Date().toISOString()},row);
+  deliveryWriteStage(nop,stage,{delivery:raw==='Sampai'?'Sudah Sampai':raw==='Tidak Sampai'?'Belum Sampai':'Belum Diupdate',reasonCategory:category,reasonOther:category==='LAINNYA'?other:'',deliveryDate:date,receiver:get('deliveryReceiver'),officer:get('deliveryOfficer'),catatan:get('deliveryNote'),updatedAt:new Date().toISOString()},row);
   await deliveryPersist();
   // Keep the saved record visible even if a status filter or page was active.
   document.querySelectorAll('#deliveryMonitorTable .delivery-filter-input').forEach(el=>el.value='');
@@ -16142,7 +16174,7 @@ function exportDeliveryExcel(){
  const rowsSrc=dashboardMatrixFilteredRows('delivery');
  if(!rowsSrc.length){alert('Tidak ada data sesuai filter untuk diekspor.');return;}
  const headers=['NOP','Kelurahan','JPB','Wajib Pajak','Himbauan','Status Penyampaian','Keterangan','Keterangan Lainnya','Catatan','Google Map','Arahan','Status Tindak Lanjut','Terakhir Diubah','Tanggal Penyampaian','Diterima oleh','Petugas','Diubah Oleh','Piutang / Tahun Berjalan','Nilai Piutang','Nilai Tahun Berjalan','Tahun Acuan'];
- const rows=rowsSrc.map(r=>{const g=excelGuidanceRow(r.nop);return [String(r.nop),r.kel,r.jpbLabel,r.wp,r.letterType,r.ops.delivery,r.keterangan,r.keteranganLain,priorityOpsState[r.nop]?.catatan??r.ket,r.maps,g.arahan,g.status,g.updatedAt,r.ops.deliveryDate||'',r.ops.receiver||'',r.ops.officer||'',g.updatedBy,r.jenisTagihan,r.nilaiPiutang,r.nilaiTahunBerjalan,r.tahunAcuan];});
+ const rows=rowsSrc.map(r=>{const g=excelGuidanceRow(r.nop);return [String(r.nop),r.kel,r.jpbLabel,r.wp,r.letterType,r.ops.delivery,r.keterangan,r.keteranganLain,r.ops.catatan||'',r.maps,g.arahan,g.status,r.ops.updatedAt||'',r.ops.deliveryDate||'',r.ops.receiver||'',r.ops.officer||'',r.ops.updatedBy||'',r.jenisTagihan,r.nilaiPiutang,r.nilaiTahunBerjalan,r.tahunAcuan];});
  excelWrite(excelCreateWorkbook('Monitoring Himbauan',headers,rows,{textWideCols:[2,3,6,7,8,9,10,14,15,21]}),`Monitoring_Penyampaian_Himbauan_${excelDateStamp()}.xlsx`);
  excelStatus(`${rows.length} catatan monitoring himbauan diekspor.`);
 }
@@ -18400,9 +18432,10 @@ const pkPaymentCache=new Map();
    delivery stages and guidance remain operational records keyed by that NOPD. */
 function pkKind(value){const text=String(value??'').trim().replace(/\s+/g,' ').toUpperCase();return !text||text==='PIUTANG'?'Piutang':text==='TAHUN BERJALAN'?'Tahun Berjalan':['PIUTANG & TAHUN BERJALAN','PIUTANG DAN TAHUN BERJALAN'].includes(text)?'Piutang & Tahun Berjalan':null;}
 function pkMasterRow(source,index=0){
+ source=priorityMasterOnly(source);
  const kind=pkKind(source.jenisTagihan)||'Piutang',grand=Number(source.grandTotal)||0;
  const debt=kind==='Tahun Berjalan'?0:Number(source.nilaiPiutang??(kind==='Piutang'?grand:0))||0,current=kind==='Piutang'?0:Number(source.nilaiTahunBerjalan??(kind==='Tahun Berjalan'?grand:0))||0;
- return {...source,rank:source.rank||index+1,nop:String(source.nop),kel:deliveryTitleCase(String(source.kelurahan||source.kel||'').trim()),wp:source.wp||'',alamatWp:source.alamatWp||'',alamatOp:source.alamatOp||'',jenisTagihan:kind,nilaiPiutang:debt,nilaiTahunBerjalan:current,grandTotal:debt+current,tahunAcuan:Number(source.tahunAcuan)||2026,jmlTahun:Number(source.jmlTahun)||0,himbauan1:source.himbauan1||'Sudah Dikirim',deliverySource:source.deliverySource||'Belum Diupdate',keterangan:source.keterangan||'',keteranganLain:source.keteranganLain||'',ket:source.ket||'',maps:source.maps||'',sourceRealisasi:Number(source.sourceRealisasi)||0,sourceTahunBayar:Number(source.sourceTahunBayar)||0};
+ return {...source,rank:source.rank||index+1,nop:String(source.nop),kel:deliveryTitleCase(String(source.kelurahan||source.kel||'').trim()),wp:source.wp||'',alamatWp:source.alamatWp||'',alamatOp:source.alamatOp||'',jenisTagihan:kind,nilaiPiutang:debt,nilaiTahunBerjalan:current,grandTotal:debt+current,tahunAcuan:Number(source.tahunAcuan)||2026,jmlTahun:Number(source.jmlTahun)||0,himbauan1:'Belum Dikirim',deliverySource:'Belum Diupdate',keterangan:'',keteranganLain:'',ket:'',maps:source.maps||'',sourceRealisasi:Number(source.sourceRealisasi)||0,sourceTahunBayar:Number(source.sourceTahunBayar)||0};
 }
 function pkPaymentFor(row){
  const debt=priorityPaymentMap('Piutang',row.tahunAcuan)[row.nop]||{},current=priorityPaymentMap('Tahun Berjalan',row.tahunAcuan)[row.nop]||{};
@@ -18503,11 +18536,7 @@ function pkCommitPlan(plan,fileName='',dataDate=''){
 
 function pkExportPriority(){
  const rows=dashboardMatrixFilteredRows('priority');
- const headers=['NOP','Wajib Pajak','Kelurahan','Piutang / Tahun Berjalan','Nilai Piutang','Nilai Tahun Berjalan','Tahun Acuan','Tahun Pajak','JPB','Alamat Objek','Alamat WP','Nilai Prioritas','Jumlah Tahun','Google Map','Status Pembayaran','Pokok Bayar','Pokok Bayar Piutang','Pokok Bayar Tahun Berjalan','Tanggal Pembayaran','Himbauan 1','Status Penyampaian','Keterangan','Keterangan Lainnya','Catatan','Arahan','Status Tindak Lanjut'];
- const data=rows.map(r=>{const g=guidanceGet(r.nop);return [r.nop,r.wp,r.kel,r.jenisTagihan,r.nilaiPiutang,r.nilaiTahunBerjalan,r.tahunAcuan,'',r.jpbLabel,r.alamatOp,r.alamatWp,r.grandTotal,r.jmlTahun,r.maps,r.payAmount>0?'Sudah Membayar':'Belum Membayar',r.payAmount,r.payPiutang,r.payTahunBerjalan,r.payDate||'',r.ops.himbauan,r.ops.delivery,r.keterangan,r.keteranganLain,priorityOpsState[r.nop]?.catatan??r.ket,g.arahan||'',g.status||'Belum Ditindaklanjuti'];});
- const wb=excelCreateWorkbook('Data Objek Prioritas',headers,data,{textWideCols:[1,9,10,13,21,22,23,24]});
- const notes=[['KETERANGAN DATA OBJEK PRIORITAS'],['Data diekspor mengikuti filter dan wilayah akses akun.'],['Pembaruan data sumber dilakukan melalui file Google Drive yang telah terhubung.'],['NOP disimpan sebagai teks 18 digit.'],['Kategori tagihan dan nilai pokok mengikuti sumber data aktif.']];
- XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(notes),'Petunjuk');excelWrite(wb,'Objek_Prioritas_'+excelDateStamp()+'.xlsx');
+ const wb=priorityStageWorkbook(rows);excelWrite(wb,'Objek_Prioritas_'+excelDateStamp()+'.xlsx');
 }
 // The standard master importer uses the same validation and merge rules.
 function pkBuildPriority(wb,fileName=''){if(!rbFull())throw Error('Impor master hanya untuk Master dan Petugas UPPPD.');const plan=pkPlanWorkbook(wb,{masterOnly:true});pkCommitPlan(plan,fileName,pbbSourceDateLabel(pbbSourceWorkbookDate(wb,'priority')));return {...pbbPriorityMeta,added:plan.added,updated:plan.updated};}
@@ -18707,7 +18736,7 @@ function importMatrixOpen(key){const source=IMPORT_MATRIX_SOURCES.find(r=>r[0]==
 
 
 
-function importMatrixWorkbook(key){if(key==='monitoring')return monitoringDriveWorkbook();
+function importMatrixWorkbook(key){if(key==='priority')return priorityMasterWorkbook();if(key==='monitoring')return monitoringDriveWorkbook();
  const wb=XLSX.utils.book_new(),add=(name,headers,rows)=>{const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);ws['!cols']=headers.map(h=>({wch:Math.min(45,Math.max(18,String(h).length+2))}));XLSX.utils.book_append_sheet(wb,ws,name);};
  if(key==='overview'){
   const year=releaseYear(),headers=['UPPPD','PAJAK','APBD '+year,'REALISASI S/D '+overviewCutoff.day+' '+overviewCutoff.monthName+' '+overviewCutoff.year,'APBD-P '+(year-1),'REALISASI '+(year-1)];
@@ -18797,11 +18826,11 @@ function monitoringDrivePlan(wb){
   const status=text(get('delivery')).toLowerCase().replace(/\s+/g,' '),statuses={'sudah sampai':'Sudah Sampai','sampai':'Sudah Sampai','belum sampai':'Belum Sampai','tidak sampai':'Belum Sampai','belum diupdate':'Belum Diupdate','':'Belum Diupdate'};
   if(!Object.hasOwn(statuses,status))throw Error(label+': Status Penyampaian tidak dikenal.');
   const fields={delivery:statuses[status]};
-  for(const k of ['reasonCategory','reasonOther','receiver','officer','updatedBy'])if(c[k]>=0)fields[k]=text(get(k));
+  for(const k of ['reasonCategory','reasonOther','receiver','officer','updatedBy','catatan'])if(c[k]>=0)fields[k]=text(get(k));
   if(Object.hasOwn(fields,'reasonCategory')){fields.reasonCategory=fields.reasonCategory.toUpperCase().replace(/\s+/g,' ');if(fields.reasonCategory==='TIDAK DITEMUKAN')fields.reasonCategory='OBJEK TIDAK DITEMUKAN';if(fields.reasonCategory&&!reasons.has(fields.reasonCategory))throw Error(label+': Keterangan tidak dikenal.');}
   if(c.deliveryDate>=0){const value=get('deliveryDate'),d=text(value)?dashboardLocalDate(value):null;if(text(value)&&!d)throw Error(label+': Tanggal Penyampaian tidak valid.');fields.deliveryDate=d?d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'):'';}
   let remoteAt='';if(c.updatedAt>=0&&text(get('updatedAt'))){const raw=get('updatedAt'),d=raw instanceof Date?raw:typeof raw==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(raw)?new Date(raw):dashboardLocalDate(raw);if(!d||!Number.isFinite(d.getTime()))throw Error(label+': Terakhir Diubah tidak valid.');remoteAt=d.toISOString();}fields.updatedAt=remoteAt;
-  const extras={};for(const k of ['catatan','driveMap','arahan','status'])if(c[k]>=0)extras[k]=text(get(k));
+  const extras={};for(const k of ['driveMap','arahan','status'])if(c[k]>=0)extras[k]=text(get(k));
   if(extras.driveMap&&!prioritySafeMapUrl(extras.driveMap))throw Error(label+': Google Map harus berupa tautan HTTP/HTTPS.');
   if(Object.hasOwn(extras,'status')){extras.status=extras.status||'Belum Ditindaklanjuti';if(!GUIDANCE_STATUS_OPTIONS.includes(extras.status))throw Error(label+': Status Tindak Lanjut tidak dikenal.');}
   const previous=shared.get(id);if(previous){for(const [k,v]of Object.entries(extras)){if(previous[k]&&v&&previous[k]!==v)throw Error(label+': '+k+' berbeda untuk NOP yang sama.');if(v)previous[k]=v;}if(remoteAt>previous.updatedAt)previous.updatedAt=remoteAt;}else shared.set(id,{...extras,updatedAt:remoteAt});
@@ -18821,7 +18850,7 @@ function monitoringDriveMerge(current,incoming,explicit=false){
 function monitoringDriveApply(wb){
  const plan=monitoringDrivePlan(wb),ops=structuredClone(priorityOpsState),guidance=structuredClone(guidanceStore),now=new Date().toISOString();let changed=0,protectedRows=0;
  for(const r of plan.records){
-  const saved=ops[r.nop]||{},existing=saved.deliveryStages?.[r.stage];const {deliveryStages,deliveryHistory,...firstStage}=saved,current=existing||(r.stage==='Himbauan 1'?firstStage:{}),incoming={...r.fields};
+  const saved=ops[r.nop]||{},existing=saved.deliveryStages?.[r.stage];const current=existing||{},incoming={...r.fields};
   const merged=monitoringDriveMerge(current,incoming,!!existing||!!saved.updatedAt||!!saved.deliveryHistory?.some(h=>h.stage===r.stage));
   if(merged.preserved)protectedRows++;
   const differs=Object.keys(incoming).some(k=>JSON.stringify(current[k]??'')!==JSON.stringify(merged.next[k]??''));
@@ -18831,9 +18860,9 @@ function monitoringDriveApply(wb){
   ops[r.nop]=entry;if(differs)changed++;
  }
  for(const [nop,shared]of plan.shared){
-  const saved=ops[nop]||{},fields={updatedAt:shared.updatedAt};for(const key of ['catatan','driveMap'])if(Object.hasOwn(shared,key))fields[key]=shared[key];
+  const saved=ops[nop]||{},fields={updatedAt:shared.updatedAt};for(const key of ['driveMap'])if(Object.hasOwn(shared,key))fields[key]=shared[key];
   const sharedBase=saved._driveShared||{},merged=monitoringDriveMerge({...saved,_driveBaseline:sharedBase},fields,!!saved.updatedAt||Object.hasOwn(saved,'catatan')||Object.hasOwn(saved,'driveMap'));
-  for(const key of ['catatan','driveMap'])if(Object.hasOwn(fields,key))saved[key]=merged.next[key];saved._driveShared=fields;ops[nop]=saved;
+  for(const key of ['driveMap'])if(Object.hasOwn(fields,key))saved[key]=merged.next[key];saved._driveShared=fields;ops[nop]=saved;
   if(Object.hasOwn(shared,'arahan')||Object.hasOwn(shared,'status')){
    const old=guidance[nop]||{},incoming={updatedAt:shared.updatedAt};for(const key of ['arahan','status'])if(Object.hasOwn(shared,key))incoming[key]=shared[key];
    const m=monitoringDriveMerge(old,incoming,!!old.updatedAt||!!old.arahan);guidance[nop]={...m.next,source:'Monitoring Google Drive',sources:[...new Set([...(old.sources||[]),'Monitoring Google Drive'])]};
@@ -18845,7 +18874,7 @@ function monitoringDriveApply(wb){
 }
 function monitoringDriveWorkbook(){
  const headers=['NOP','Kelurahan','JPB','Wajib Pajak','Himbauan','Status Penyampaian','Keterangan','Keterangan Lainnya','Catatan','Google Map','Arahan','Status Tindak Lanjut','Terakhir Diubah','Tanggal Penyampaian','Diterima oleh','Petugas','Diubah Oleh','Piutang / Tahun Berjalan','Nilai Piutang','Nilai Tahun Berjalan','Tahun Acuan'];
- const rows=deliveryRowsEnriched().map(r=>{const g=guidanceGet(r.nop);return [String(r.nop),r.kel,r.jpbLabel,r.wp,r.letterType,r.ops.delivery,r.keterangan,r.ops.reasonOther||'',priorityOpsState[r.nop]?.catatan??r.ket,r.maps,g.arahan,g.status,g.updatedAt||r.ops.updatedAt||'',r.ops.deliveryDate||'',r.ops.receiver||'',r.ops.officer||'',g.updatedBy||r.ops.updatedBy||'',r.jenisTagihan,r.nilaiPiutang,r.nilaiTahunBerjalan,r.tahunAcuan];});
+ const rows=deliveryRowsEnriched().map(r=>{const g=guidanceGet(r.nop);return [String(r.nop),r.kel,r.jpbLabel,r.wp,r.letterType,r.ops.delivery,r.keterangan,r.ops.reasonOther||'',r.ops.catatan||'',r.maps,g.arahan,g.status,r.ops.updatedAt||'',r.ops.deliveryDate||'',r.ops.receiver||'',r.ops.officer||'',r.ops.updatedBy||'',r.jenisTagihan,r.nilaiPiutang,r.nilaiTahunBerjalan,r.tahunAcuan];});
  return excelCreateWorkbook('Monitoring Himbauan',headers,rows);
 }
 
@@ -18939,7 +18968,7 @@ function saktiHybridPriorityPlan(wb){
   const number=(...keys)=>{const v=get(...keys);return v===''?null:pkNumber(v,keys[0]);};
   const amounts=pkResolveAmounts(old,kind,{debt:number('Nilai Piutang'),current:number('Nilai Tahun Berjalan'),total:number('Nilai Prioritas','Grand Total')});
   const years=Number(get('Jumlah Tahun')||old.jmlTahun||0);if(!Number.isInteger(years)||years<0)throw Error('Jumlah Tahun tidak valid untuk '+nop);
-  masters.set(nop,pkMasterRow({...old,nop,kel,kelurahan:kel,wp,jenisTagihan:kind,...amounts,tahunAcuan:Number(get('Tahun Acuan')||old.tahunAcuan||releaseYear()),jmlTahun:years,alamatOp:String(get('Alamat Objek')||old.alamatOp||''),alamatWp:String(get('Alamat WP')||old.alamatWp||''),maps:String(get('Google Map','Maps')||old.maps||''),ket:String(get('Catatan')||old.ket||''),himbauan1:old.himbauan1||String(get('Himbauan 1')||'Belum Dikirim'),deliverySource:old.deliverySource||String(get('Status Penyampaian')||'Belum Diupdate'),keterangan:old.keterangan||String(get('Keterangan')||''),keteranganLain:old.keteranganLain||String(get('Keterangan Lainnya')||'')}));
+  masters.set(nop,pkMasterRow({...old,nop,kel,kelurahan:kel,wp,jenisTagihan:kind,...amounts,tahunAcuan:Number(get('Tahun Acuan')||old.tahunAcuan||releaseYear()),jmlTahun:years,alamatOp:String(get('Alamat Objek')||old.alamatOp||''),alamatWp:String(get('Alamat WP')||old.alamatWp||''),maps:String(get('Google Map','Maps')||old.maps||'')}));
  }
  return {masters:[...masters.values()],yearDetails:prepared.yearDetails};
 }
