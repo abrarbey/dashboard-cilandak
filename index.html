@@ -10664,6 +10664,11 @@ body input[type="number"]::-webkit-inner-spin-button,body input[type="number"]::
 }
 
 </style>
+<style id="admin-visibility-v157">
+/* Access visibility must override responsive navigation layout rules. */
+#appSidebar .navgroup[hidden],
+#appSidebar .navitem[hidden]{display:none!important}
+</style>
 </head>
 <body>
 <div id="sessionRestoreStatus" role="status" aria-live="polite">Memuat dashboard…</div>
@@ -10784,7 +10789,7 @@ body input[type="number"]::-webkit-inner-spin-button,body input[type="number"]::
       </div>
     </div>
 
-<div class="navgroup" data-group="admin">
+<div class="navgroup" data-group="admin" hidden>
       <button class="group-trigger" type="button" onclick="toggleNavGroup('admin')">
         <span>Admin</span>
         <span class="group-chevron">⌄</span>
@@ -18324,7 +18329,7 @@ function rbCanNop(nop){return rbCanWrite()&&priorityActiveMaster().some(r=>Strin
 function rbCanStage(stage){return ['Himbauan 1','Himbauan 2','Himbauan 3'].includes(stage)&&(rbFull()||stage!=='Himbauan 3');}
 function rbPublisher(){return rbRole()==='kelurahan'?'Kelurahan '+rbVillage():rbRole()==='kecamatan'?'Kecamatan Cilandak':'UPPPD Cilandak';}
 function rbApplyControls(){
- const u=rbUser();if(!u)return;const full=rbFull(),kel=rbVillage();
+ const u=rbUser();document.querySelectorAll('.navgroup[data-group="admin"]').forEach(group=>group.hidden=!rbFull());if(!u)return;const full=rbFull(),kel=rbVillage();
  if(rbLimited())selectedRegion='CILANDAK';
  if(kel)pbjtPerfState.kel=kel;
  document.querySelectorAll('.navitem[data-page]').forEach(nav=>{if(['users','targets','import'].includes(nav.dataset.page))nav.hidden=!full;});
